@@ -1,5 +1,6 @@
 package com.example.ai_guardian
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -38,41 +39,17 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            var screen by remember { mutableStateOf("splash") }
-
-            when(screen){
-
-                "splash" -> SplashScreen {
-                    screen = "login"
-                }
-
-                "login" -> LoginScreen {
-                    screen = "register"
-                }
-
-                "register" -> RegisterScreen(
-                    onLoginClick = { screen = "login" }
-                )
+            SplashScreen {
+                startActivity(Intent(this, LoginActivity::class.java))
+                finish()
             }
         }
     }
 }
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
 
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    AI_guardianTheme {
-        Greeting("Android")
-    }
-}
+
+
 @Composable
 fun SplashScreen(onFinish: () -> Unit) {
 
@@ -103,184 +80,10 @@ fun SplashScreen(onFinish: () -> Unit) {
     }
 }
 
-@Composable
-fun HomeScreen() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        androidx.compose.material3.Text(text = "Welcome to the App")
-    }
-}
+
 
 @Preview(showBackground = true)
 @Composable
 fun PreviewSplash() {
     SplashScreen {}
-}
-
-    @Composable
-    fun RegisterScreen(onLoginClick: () -> Unit) {
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-
-        Spacer(modifier = Modifier.height(40.dp))
-
-        Image(
-            painter = painterResource(R.drawable.logo),
-            contentDescription = "logo",
-            modifier = Modifier.size(120.dp)
-        )
-
-        Text(
-            text = "AI Guardian",
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        Text(
-            text = "Protéger et accompagner chaque jour"
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Text(
-            text = "Créer un compte",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        OutlinedTextField(
-            value = "",
-            onValueChange = {},
-            label = { Text("Enter votre nom") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        OutlinedTextField(
-            value = "",
-            onValueChange = {},
-            label = { Text("Enter votre email") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        OutlinedTextField(
-            value = "",
-            onValueChange = {},
-            label = { Text("Choisir un mot de pass") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Button(
-            onClick = {},
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("S’inscrire")
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Text("Vous avez déjà un compte")
-
-        Text(
-            text = "Se connecter",
-            color = Color.Blue,
-            modifier = Modifier.clickable {
-                onLoginClick()
-            }
-        )
-    }
-}
-@Composable
-fun LoginScreen(onRegisterClick: () -> Unit) {
-
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-
-        Spacer(modifier = Modifier.height(60.dp))
-
-        Image(
-            painter = painterResource(R.drawable.logo),
-            contentDescription = "logo",
-            modifier = Modifier.size(120.dp)
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Text(
-            text = "Se connecter",
-            fontSize = 26.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(30.dp))
-
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Email") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Mot de passe") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Text(
-            text = "Mot de passe oublié ?",
-            color = Color.Blue,
-            modifier = Modifier.align(Alignment.End)
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Button(
-            onClick = { },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Se connecter")
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Row {
-
-            Text("Vous n'avez pas de compte ? ")
-
-            Text(
-                text = "Créer un compte",
-                color = Color.Blue,
-                modifier = Modifier.clickable {
-                    onRegisterClick()
-                }
-            )
-        }
-    }
 }

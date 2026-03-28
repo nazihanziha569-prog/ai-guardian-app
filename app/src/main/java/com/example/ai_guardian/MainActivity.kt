@@ -32,7 +32,17 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
-
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -122,93 +132,152 @@ fun PreviewSplash() {
     @Composable
     fun RegisterScreen(onLoginClick: () -> Unit) {
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+        val context = LocalContext.current
 
-        Spacer(modifier = Modifier.height(40.dp))
+        var name by remember { mutableStateOf("") }
+        var email by remember { mutableStateOf("") }
+        var password by remember { mutableStateOf("") }
+        var passwordVisible by remember { mutableStateOf(false) }
 
-        Image(
-            painter = painterResource(R.drawable.logo),
-            contentDescription = "logo",
-            modifier = Modifier.size(120.dp)
-        )
+        val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+        val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
 
-        Text(
-            text = "AI Guardian",
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        Text(
-            text = "Protéger et accompagner chaque jour"
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Text(
-            text = "Créer un compte",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        OutlinedTextField(
-            value = "",
-            onValueChange = {},
-            label = { Text("Enter votre nom") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        OutlinedTextField(
-            value = "",
-            onValueChange = {},
-            label = { Text("Enter votre email") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        OutlinedTextField(
-            value = "",
-            onValueChange = {},
-            label = { Text("Choisir un mot de pass") },
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Button(
-            onClick = {},
-            modifier = Modifier.fillMaxWidth()
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("S’inscrire")
-        }
 
-        Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(40.dp))
 
-        Text("Vous avez déjà un compte")
+            Image(
+                painter = painterResource(R.drawable.logo),
+                contentDescription = "logo",
+                modifier = Modifier.size(120.dp)
+            )
 
-        Text(
-            text = "Se connecter",
-            color = Color.Blue,
-            modifier = Modifier.clickable {
-                onLoginClick()
+            Text(
+                text = "AI Guardian",
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Text(
+                text = "Protéger et accompagner chaque jour"
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                text = "Créer un compte",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Enter votre nom") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it },
+                label = { Text("Enter votre email") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text("Choisir un mot de pass") },
+                modifier = Modifier.fillMaxWidth(),
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                trailingIcon = {
+                    val image = if (passwordVisible)
+                        Icons.Default.Visibility
+                    else
+                        Icons.Default.VisibilityOff
+
+                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                        Icon(imageVector = image, contentDescription = if (passwordVisible) "Cacher mot de passe" else "Voir mot de passe")
+                    }
+                }
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Button(
+                onClick = {
+
+                    if (name.isEmpty() || email.isEmpty() || password.isEmpty()) {
+                        Toast.makeText(context, "Remplir tous les champs ❌", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+
+                    auth.createUserWithEmailAndPassword(email, password)
+                        .addOnSuccessListener {
+
+                            val uid = auth.currentUser!!.uid
+
+                            val user = hashMapOf(
+                                "nom" to name,
+                                "email" to email,
+                                "role" to "surveillee"
+                            )
+
+                            db.collection("Users")
+                                .document(uid)
+                                .set(user)
+                                .addOnSuccessListener {
+                                    Toast.makeText(context, "Compte créé ✅", Toast.LENGTH_SHORT).show()
+
+                                    // 🔥 يمشي للـ login
+                                    onLoginClick()
+                                }
+
+                        }
+                        .addOnFailureListener {
+                            Toast.makeText(context, "Erreur: ${it.message}", Toast.LENGTH_LONG).show()
+                        }
+
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("S’inscrire")
             }
-        )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text("Vous avez déjà un compte")
+
+            Text(
+                text = "Se connecter",
+                color = Color.Blue,
+                modifier = Modifier.clickable {
+                    onLoginClick()
+                }
+            )
+        }
     }
-}
 @Composable
 fun LoginScreen(onRegisterClick: () -> Unit) {
+    val context = LocalContext.current
 
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
+
+    val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
 
     Column(
         modifier = Modifier
@@ -248,7 +317,22 @@ fun LoginScreen(onRegisterClick: () -> Unit) {
             value = password,
             onValueChange = { password = it },
             label = { Text("Mot de passe") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            trailingIcon = {
+                val image = if (passwordVisible)
+                    Icons.Default.Visibility
+                else
+                    Icons.Default.VisibilityOff
+
+                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                    Icon(
+                        imageVector = image,
+                        contentDescription = if (passwordVisible) "Cacher" else "Voir"
+                    )
+                }
+            }
         )
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -262,7 +346,22 @@ fun LoginScreen(onRegisterClick: () -> Unit) {
         Spacer(modifier = Modifier.height(20.dp))
 
         Button(
-            onClick = { },
+            onClick = {
+
+                if (email.isEmpty() || password.isEmpty()) {
+                    Toast.makeText(context, "Remplir tous les champs ❌", Toast.LENGTH_SHORT).show()
+                    return@Button
+                }
+
+                auth.signInWithEmailAndPassword(email, password)
+                    .addOnSuccessListener {
+                        Toast.makeText(context, "Login réussi ✅", Toast.LENGTH_SHORT).show()
+                    }
+                    .addOnFailureListener {
+                        Toast.makeText(context, "Erreur: ${it.message}", Toast.LENGTH_LONG).show()
+                    }
+
+            },
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Se connecter")

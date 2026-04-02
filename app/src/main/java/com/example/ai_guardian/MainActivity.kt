@@ -1,5 +1,6 @@
 package com.example.ai_guardian
 
+import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -42,7 +43,23 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.platform.LocalContext
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.filled.QrCode
+import androidx.compose.material3.FabPosition
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.ui.graphics.asImageBitmap
+import com.google.zxing.integration.android.*
+import android.content.*
+import androidx.activity.compose.rememberLauncherForActivityResult
+
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,24 +67,36 @@ class MainActivity : ComponentActivity() {
         setContent {
             var screen by remember { mutableStateOf("splash") }
 
-            when(screen){
+            when (screen) {
 
                 "splash" -> SplashScreen {
                     screen = "login"
                 }
 
-                "login" -> LoginScreen {
-                    screen = "register"
-                }
+                "login" -> LoginScreen(
+                    onRegisterClick = { screen = "register" },
+                    onLoginSuccess = { screen = "dashboard" },
+                    onScanClick = { screen = "qr_scan" }
+                )
+
 
                 "register" -> RegisterScreen(
                     onLoginClick = { screen = "login" }
                 )
+
+                "dashboard" -> DashboardScreen(
+                    onQrClick = { screen = "qr" }
+                )
+
+                "qr" -> GenerateQRScreen(
+                    onBack = { screen = "dashboard" }
+                )
+                "qr_scan" -> QRScreen(
+                    onBack = { screen = "login" }
+                )
             }
         }
-    }
-}
-
+    } }
 @Composable
 fun Greeting(name: String, modifier: Modifier = Modifier) {
     Text(
@@ -270,7 +299,9 @@ fun PreviewSplash() {
         }
     }
 @Composable
-fun LoginScreen(onRegisterClick: () -> Unit) {
+fun LoginScreen(onRegisterClick: () -> Unit,
+                onLoginSuccess: () -> Unit,
+                onScanClick: () -> Unit) {
     val context = LocalContext.current
 
     var email by remember { mutableStateOf("") }
@@ -356,6 +387,7 @@ fun LoginScreen(onRegisterClick: () -> Unit) {
                 auth.signInWithEmailAndPassword(email, password)
                     .addOnSuccessListener {
                         Toast.makeText(context, "Login réussi ✅", Toast.LENGTH_SHORT).show()
+                        onLoginSuccess()
                     }
                     .addOnFailureListener {
                         Toast.makeText(context, "Erreur: ${it.message}", Toast.LENGTH_LONG).show()
@@ -368,6 +400,14 @@ fun LoginScreen(onRegisterClick: () -> Unit) {
         }
 
         Spacer(modifier = Modifier.height(20.dp))
+        Button(
+            onClick = {
+                onScanClick()
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Scanner QR du superviseur")
+        }
 
         Row {
 
@@ -383,3 +423,262 @@ fun LoginScreen(onRegisterClick: () -> Unit) {
         }
     }
 }
+
+@Composable
+fun DashboardScreen(onQrClick: () -> Unit) {
+
+    var selectedScreen by remember { mutableStateOf("home") }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+
+        // 🔹 CONTENT حسب الصفحة
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = 90.dp)
+                .padding(16.dp)
+        ) {
+
+            when (selectedScreen) {
+                "home" -> HomeContent()
+                "alerts" -> AlertsScreen()
+                "settings" -> SettingsScreen()
+                "history" -> HistoryScreen()
+            }
+        }
+
+        // 🔹 NAV BAR
+        BottomNavBar(
+            selected = selectedScreen,
+            onItemSelected = { selectedScreen = it },
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
+
+        FloatingActionButton(
+            onClick = { onQrClick() },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .offset(x = (-16).dp, y = (-35).dp),
+            containerColor = Color.White
+        ) {
+            Icon(Icons.Default.QrCode, contentDescription = "QR", tint = Color.Blue)
+        }
+    }
+}
+
+
+
+@Composable
+fun BottomNavBar(
+    selected: String,
+    onItemSelected: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(70.dp)
+            .background(Color.White),
+        horizontalArrangement = Arrangement.SpaceAround,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+
+        NavItem("📋", "Home", selected == "home") {
+            onItemSelected("home")
+        }
+
+        NavItem("🔔", "Alerts", selected == "alerts") {
+            onItemSelected("alerts")
+        }
+
+        NavItem("⚙️", "Settings", selected == "settings") {
+            onItemSelected("settings")
+        }
+
+        NavItem("🕘", "History", selected == "history") {
+            onItemSelected("history")
+        }
+    }}
+
+
+    @Composable
+    fun NavItem(
+        icon: String,
+        label: String,
+        isSelected: Boolean,
+        onClick: () -> Unit
+    ) {
+
+        val color = if (isSelected) Color(0xFF1976D2) else Color.Gray
+
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.clickable { onClick() }
+        ) {
+            Text(icon, fontSize = 20.sp, color = color)
+            Text(label, fontSize = 11.sp, color = color)
+        }
+    }
+
+@Composable
+fun HomeContent() {
+    Text("Home Screen", fontSize = 22.sp)
+}
+
+@Composable
+fun AlertsScreen() {
+    Text("Alerts Screen", fontSize = 22.sp)
+}
+
+@Composable
+fun SettingsScreen() {
+    Text("Settings Screen", fontSize = 22.sp)
+}
+
+@Composable
+fun HistoryScreen() {
+    Text("History Screen", fontSize = 22.sp)
+}
+
+    @Composable
+    fun UserCard(name: String, status: String, isSafe: Boolean) {
+
+        val bgColor = if (isSafe) Color(0xFFDFF5E1) else Color(0xFFFDE0E0)
+        val textColor = if (isSafe) Color(0xFF2E7D32) else Color(0xFFC62828)
+
+        androidx.compose.material3.Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .background(Color(0xFFF5F5F5))
+                    .padding(16.dp)
+            ) {
+
+                Text(name, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = "Status: $status",
+                    color = textColor,
+                    modifier = Modifier
+                        .background(bgColor)
+                        .padding(6.dp)
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Button(
+                    onClick = {},
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Voir localisation")
+                }
+            }
+        }}
+
+@Composable
+fun QRScreen(onBack: () -> Unit) {
+
+    val context = LocalContext.current
+    val activity = context as Activity
+
+    val launcher = rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+
+        val intentResult = IntentIntegrator.parseActivityResult(
+            result.resultCode,
+            result.data
+        )
+
+        if (intentResult != null && intentResult.contents != null) {
+
+            val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+
+            val superviseeId = auth.currentUser?.uid
+            val superviseurId = intentResult.contents
+
+            if (superviseeId != null && superviseurId != null) {
+
+                val relation = hashMapOf(
+                    "superviseurId" to superviseurId,
+                    "superviseeId" to superviseeId
+                )
+
+                db.collection("Associations")
+                    .add(relation)
+                    .addOnSuccessListener {
+                        Toast.makeText(context, "Linked successfully ✅", Toast.LENGTH_LONG).show()
+                    }
+                    .addOnFailureListener {
+                        Toast.makeText(context, "Error: ${it.message}", Toast.LENGTH_LONG).show()
+                    }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+
+        val integrator = IntentIntegrator(activity)
+        integrator.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE)
+        integrator.setPrompt("Scan QR Code")
+        integrator.setBeepEnabled(true)
+        integrator.setOrientationLocked(true)
+
+        launcher.launch(integrator.createScanIntent())
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text("Ouverture de la caméra...")
+    }
+}
+
+@Composable
+fun GenerateQRScreen(onBack: () -> Unit) {
+
+    val context = LocalContext.current
+    val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+    val uid = auth.currentUser?.uid ?: "no_user"
+
+    val qrData = uid
+
+    val bitmap = remember {
+        val writer = com.google.zxing.qrcode.QRCodeWriter()
+        val bitMatrix = writer.encode(qrData, com.google.zxing.BarcodeFormat.QR_CODE, 512, 512)
+
+        val bmp = android.graphics.Bitmap.createBitmap(512, 512, android.graphics.Bitmap.Config.RGB_565)
+
+        for (x in 0 until 512) {
+            for (y in 0 until 512) {
+                bmp.setPixel(x, y, if (bitMatrix[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+            }
+        }
+        bmp
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = "QR Code",
+                modifier = Modifier.size(250.dp)
+            )
+        }
+    }
+}
+

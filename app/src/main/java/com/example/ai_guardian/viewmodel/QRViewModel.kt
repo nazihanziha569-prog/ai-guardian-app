@@ -12,28 +12,31 @@ class QRViewModel : ViewModel() {
     var qrResult by mutableStateOf("")
     var isLinked by mutableStateOf(false)
 
-    // ✅ وقت يعمل scan
     fun onQrScanned(data: String) {
         qrResult = data
     }
 
-    // 🔥 الربط مع superviseur
-    fun linkToSupervisor(
+    fun createAssociation(
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
-        val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
+        val superviseeId = FirebaseAuth.getInstance().currentUser?.uid
+        val superviseurId = qrResult
 
-        if (currentUserId == null || qrResult.isEmpty()) {
+        if (superviseeId == null || superviseurId.isEmpty()) {
             onError("QR invalide ❌")
             return
         }
 
-        val db = FirebaseFirestore.getInstance()
+        val data = hashMapOf(
+            "superviseurId" to superviseurId,
+            "superviseeId" to superviseeId,
+            "createdAt" to System.currentTimeMillis()
+        )
 
-        db.collection("Users")
-            .document(currentUserId)
-            .update("supervisorId", qrResult)
+        FirebaseFirestore.getInstance()
+            .collection("Associations")
+            .add(data)
             .addOnSuccessListener {
                 isLinked = true
                 onSuccess()

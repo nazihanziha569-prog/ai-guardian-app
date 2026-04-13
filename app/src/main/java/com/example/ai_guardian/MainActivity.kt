@@ -175,7 +175,12 @@ class MainActivity : ComponentActivity() {
                 composable("qr_scan") {
                     QRScreen(
                         qrViewModel = qrViewModel,
-                        onBack = { navController.popBackStack() }
+                        onBack = { navController.popBackStack() },
+                        onSuccessNavigate = {
+                            navController.navigate("dashboard_surveille") {
+                                popUpTo("qr_scan") { inclusive = true }
+                            }
+                        }
                     )
                 }
             }

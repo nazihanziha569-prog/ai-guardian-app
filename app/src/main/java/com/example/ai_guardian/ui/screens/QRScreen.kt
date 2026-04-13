@@ -1,6 +1,5 @@
 package com.example.ai_guardian.ui.screens
 
-
 import android.app.Activity
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -22,13 +21,14 @@ import com.google.zxing.integration.android.IntentIntegrator
 @Composable
 fun QRScreen(
     qrViewModel: QRViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onSuccessNavigate: () -> Unit // 🔥 باش نمشيو للـ dashboard بعد الربط
 ) {
 
     val context = LocalContext.current
     val activity = context as Activity
 
-    // 🔥 launcher
+    // 🔥 Launcher QR
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -42,7 +42,7 @@ fun QRScreen(
 
             val scannedData = intentResult.contents
 
-            // ✅ نخزنو في ViewModel
+            // ✅ نخزن النتيجة
             qrViewModel.onQrScanned(scannedData)
 
             Toast.makeText(context, "QR Scanné ✅", Toast.LENGTH_SHORT).show()
@@ -105,27 +105,37 @@ fun QRScreen(
                 Text("Résultat: ${qrViewModel.qrResult}")
             }
         }
-        Button(
-            onClick = {
-                qrViewModel.linkToSupervisor(
-                    onSuccess = {
-                        Toast.makeText(context, "Lien réussi ✅", Toast.LENGTH_SHORT).show()
-                    },
-                    onError = {
-                        Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
-                    }
-                )
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Confirmer le lien")
-        }
 
-        Button(
-            onClick = onBack,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Retour")
+        Column {
+
+            // 🔥 Bouton confirmer (association)
+            Button(
+                onClick = {
+                    qrViewModel.createAssociation(
+                        onSuccess = {
+                            Toast.makeText(context, "Lien réussi ✅", Toast.LENGTH_SHORT).show()
+                            onSuccessNavigate() // 🔥 تمشي للداشبورد
+                        },
+                        onError = { errorMessage: String ->
+                            Toast.makeText(context, errorMessage, Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = qrViewModel.qrResult.isNotEmpty() // 🔥 ما ينجمش يضغط قبل scan
+            ) {
+                Text("Confirmer le lien")
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 🔙 Retour
+            Button(
+                onClick = onBack,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Retour")
+            }
         }
     }
 }

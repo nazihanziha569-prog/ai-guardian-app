@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.sp
 import com.example.ai_guardian.viewmodel.AlertViewModel
 import com.google.firebase.auth.FirebaseAuth
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FloatingActionButton
 
 @Composable
 fun DashboardSurveilleScreen(
@@ -59,47 +60,48 @@ fun DashboardSurveilleScreen(
             Spacer(modifier = Modifier.height(40.dp))
 
             // 🟢 Alert normal
-            Button(
-                onClick = {
-                    alertViewModel.sendAlert(
-                        type = "normal",
-                        onSuccess = {
-                            Toast.makeText(context, "Alerte envoyée ✅", Toast.LENGTH_SHORT).show()
-                        },
-                        onError = {
-                            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
-                        }
-                    )
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(60.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                Text("Alerte normale 🟢")
-            }
 
-            Spacer(modifier = Modifier.height(20.dp))
+                // 🟠 NORMAL ALERT
+                FloatingActionButton(
+                    onClick = {
+                        alertViewModel.sendAlert(
+                            type = "normal",
+                            message = "",
+                            onSuccess = {
+                                Toast.makeText(context, "Alerte envoyée ✅", Toast.LENGTH_SHORT).show()
+                            },
+                            onError = {
+                                Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                    },
+                    containerColor = Color(0xFFFF9800),
+                    modifier = Modifier.size(90.dp)
+                ) {
+                    Text("🟢", fontSize = 28.sp)
+                }
 
-            // 🔴 Alert danger
-            Button(
-                onClick = {
-                    alertViewModel.sendAlert(
-                        type = "danger",
-                        onSuccess = {
-                            Toast.makeText(context, "ALERTE DANGER 🚨", Toast.LENGTH_SHORT).show()
-                        },
-                        onError = {
-                            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
-                        }
-                    )
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(60.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-            ) {
-                Text("Alerte DANGER 🔴")
-            }
-        }
-    }
-}
+                // 🔴 DANGER ALERT
+                FloatingActionButton(
+                    onClick = {
+                        alertViewModel.sendAlert(
+                            type = "danger",
+                            message = "",
+                            onSuccess = {
+                                Toast.makeText(context, "ALERTE DANGER 🚨", Toast.LENGTH_SHORT).show()
+                            },
+                            onError = {
+                                Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                    },
+                    containerColor = Color.Red,
+                    modifier = Modifier.size(90.dp)
+                ) {
+                    Text("🚨", fontSize = 28.sp)
+                }
+            }}}}

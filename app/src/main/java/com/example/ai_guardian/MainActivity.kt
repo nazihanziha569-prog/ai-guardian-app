@@ -6,11 +6,24 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.*
 import androidx.navigation.compose.*
-import com.example.ai_guardian.ui.screens.*
-import com.example.ai_guardian.viewmodel.*
+import com.example.ai_guardian.ui.screens.DashboardScreen
+import com.example.ai_guardian.ui.screens.GenerateQRScreen
+import com.example.ai_guardian.ui.screens.QRScreen
+import com.example.ai_guardian.ui.screens.SplashScreen
+import com.example.ai_guardian.ui.screens.LoginScreen
+import com.example.ai_guardian.ui.screens.WelcomeScreen
+import com.example.ai_guardian.viewmodel.AuthViewModel
+import com.example.ai_guardian.viewmodel.QRViewModel
 import com.google.firebase.auth.FirebaseAuth
 import com.example.ai_guardian.data.datasource.FirebaseDataSource
 import com.example.ai_guardian.data.repository.UserRepository
+import com.example.ai_guardian.ui.screens.DashboardSurveilleScreen
+import com.example.ai_guardian.ui.screens.RegisterSuperviseurScreen
+import com.example.ai_guardian.ui.screens.RegisterSurveilleScreen
+import com.example.ai_guardian.ui.screens.RoleSelectionScreen
+import com.example.ai_guardian.ui.screens.AboutScreen
+import com.example.ai_guardian.viewmodel.AlertViewModel
+import com.google.firebase.firestore.FirebaseFirestore
 
 class MainActivity : ComponentActivity() {
 
@@ -26,10 +39,11 @@ class MainActivity : ComponentActivity() {
             val firebaseDataSource = remember { FirebaseDataSource() }
             val userRepository = remember { UserRepository(firebaseDataSource) }
 
+            // ✅ ViewModel (instance wahda lel app kol)
             val authViewModel = remember {
                 AuthViewModel(userRepository)
             }
-
+            // ✅ auto login
             val startDestination = "splash"
 
             NavHost(
@@ -37,13 +51,41 @@ class MainActivity : ComponentActivity() {
                 startDestination = startDestination
             ) {
 
-                // 🔹 Splash
+                // 🔹 Splash (optionnel)
                 composable("splash") {
                     SplashScreen {
-                        if (FirebaseAuth.getInstance().currentUser != null) {
-                            navController.navigate("dashboard") {
-                                popUpTo("splash") { inclusive = true }
-                            }
+                        val uid = FirebaseAuth.getInstance().currentUser?.uid
+
+                        if (uid != null) {
+
+                            FirebaseFirestore.getInstance()
+                                .collection("Users")
+                                .document(uid)
+                                .get()
+                                .addOnSuccessListener { doc ->
+
+                                    val role = doc.getString("role")
+
+                                    if (role == "superviseur") {
+                                        navController.navigate("dashboard") {
+                                            popUpTo("splash") { inclusive = true }
+                                        }
+                                    } else if (role == "surveille") {
+                                        navController.navigate("dashboard_surveille") {
+                                            popUpTo("splash") { inclusive = true }
+                                        }
+                                    } else {
+                                        navController.navigate("welcome") {
+                                            popUpTo("splash") { inclusive = true }
+                                        }
+                                    }
+                                }
+                                .addOnFailureListener {
+                                    navController.navigate("welcome") {
+                                        popUpTo("splash") { inclusive = true }
+                                    }
+                                }
+
                         } else {
                             navController.navigate("welcome") {
                                 popUpTo("splash") { inclusive = true }
@@ -52,12 +94,11 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // 🔹 Welcome
                 composable("welcome") {
                     WelcomeScreen(
                         onLoginClick = { navController.navigate("login") },
                         onRegisterClick = { navController.navigate("role") },
-                        onAboutClick = { navController.navigate("about") } // 👈 مهم
+                        onAboutClick = { navController.navigate("about") }
                     )
                 }
 
@@ -68,15 +109,14 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                // 🔹 Role Selection
                 composable("role") {
                     RoleSelectionScreen(
                         onSuperviseurClick = {
-                            authViewModel.role = "superviseur"
+                            authViewModel.role = "superviseur" // ✅
                             navController.navigate("register_superviseur")
                         },
                         onSurveilleClick = {
-                            authViewModel.role = "surveille"
+                            authViewModel.role = "surveille" // ✅
                             navController.navigate("register_surveille")
                         },
                         onBack = {
@@ -91,17 +131,20 @@ class MainActivity : ComponentActivity() {
                         viewModel = authViewModel,
                         onRegisterClick = { navController.navigate("role") },
                         onLoginSuccess = { role ->
+
                             if (role == "superviseur") {
                                 navController.navigate("dashboard")
                             } else {
                                 navController.navigate("dashboard_surveille")
                             }
+
                         },
                         onScanClick = { navController.navigate("qr_scan") }
+
                     )
                 }
 
-                // 🔹 Register Superviseur
+                // 🔹 Register
                 composable("register_superviseur") {
                     RegisterSuperviseurScreen(
                         authViewModel = authViewModel,
@@ -118,12 +161,11 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                // 🔹 Register Surveillé
                 composable("register_surveille") {
                     RegisterSurveilleScreen(
                         authViewModel = authViewModel,
                         onSuccess = {
-                            navController.navigate("qr_scan")
+                            navController.navigate("qr_scan") // 👈 مهم
                         },
                         onCancel = {
                             navController.navigate("welcome") {
@@ -132,8 +174,7 @@ class MainActivity : ComponentActivity() {
                         }
                     )
                 }
-
-                // 🔹 Dashboard Superviseur
+                // 🔹 Dashboard
                 composable("dashboard") {
                     DashboardScreen(
                         authViewModel = authViewModel,
@@ -143,10 +184,8 @@ class MainActivity : ComponentActivity() {
                                 popUpTo("dashboard") { inclusive = true }
                             }
                         }
-                    )
-                }
+                    )}
 
-                // 🔹 Dashboard Surveillé
                 composable("dashboard_surveille") {
                     val alertViewModel = remember { AlertViewModel() }
 
@@ -183,4 +222,4 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-}
+   }

@@ -22,6 +22,7 @@ class AuthViewModel(
     var passwordVisible by mutableStateOf(false)
     var role by mutableStateOf("")
     var age by mutableStateOf("")
+    var phone by mutableStateOf("")
 
     // 🔥 لازم هنا (داخل الكلاس)
     var surveilles by mutableStateOf<List<User>>(emptyList())

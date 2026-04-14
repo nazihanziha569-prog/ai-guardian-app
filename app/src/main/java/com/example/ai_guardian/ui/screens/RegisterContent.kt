@@ -83,6 +83,15 @@ fun RegisterContent(
         Spacer(modifier = Modifier.height(10.dp))
 
         OutlinedTextField(
+            value = authViewModel.phone,
+            onValueChange = { authViewModel.phone = it },
+            label = { Text("Numéro de téléphone") },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+
+        OutlinedTextField(
             value = authViewModel.age,
             onValueChange = { authViewModel.age = it },
             label = { Text("Age") },

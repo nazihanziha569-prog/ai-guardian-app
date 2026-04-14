@@ -72,14 +72,16 @@ fun DashboardScreen(authViewModel: AuthViewModel,
         BottomNavBar(
             selected = selectedScreen,
             onItemSelected = { selectedScreen = it },
-            modifier = Modifier.align(Alignment.BottomCenter)
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 35.dp)
         )
 
         FloatingActionButton(
             onClick = { onQrClick() },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .offset(x = (-16).dp, y = (-35).dp),
+                .padding(end = 16.dp, bottom = 80.dp),
             containerColor = Color.White
         ) {
             Icon(Icons.Default.QrCode, contentDescription = "QR", tint = Color.Blue)

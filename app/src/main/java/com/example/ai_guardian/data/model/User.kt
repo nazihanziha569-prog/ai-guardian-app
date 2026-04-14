@@ -9,4 +9,5 @@ data class User(
     val role: String = "",
     val isOnline: Boolean = false,
     val imageUrl: String = "",
+    val phone: String = "",
 )

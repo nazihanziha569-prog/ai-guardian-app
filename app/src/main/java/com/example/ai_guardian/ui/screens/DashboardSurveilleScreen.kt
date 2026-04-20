@@ -1,25 +1,45 @@
 package com.example.ai_guardian.ui.screens
 
+import android.Manifest
+import android.annotation.SuppressLint
+import android.app.Activity
+import android.content.Context
+import android.os.Looper
 import android.widget.Toast
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Logout
-import androidx.compose.material3.Button
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.*
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.ActivityCompat
 import com.example.ai_guardian.viewmodel.AlertViewModel
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import com.google.firebase.auth.FirebaseAuth
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FloatingActionButton
+import com.google.firebase.firestore.FirebaseFirestore
 
 @Composable
 fun DashboardSurveilleScreen(
@@ -28,6 +48,17 @@ fun DashboardSurveilleScreen(
 ) {
 
     val context = LocalContext.current
+    val activity = context as Activity
+
+    LaunchedEffect(Unit) {
+        ActivityCompat.requestPermissions(
+            activity,
+            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+            1
+        )
+
+        startLocationUpdates(context)
+    }
 
     Box(
         modifier = Modifier
@@ -105,3 +136,38 @@ fun DashboardSurveilleScreen(
                     Text("🚨", fontSize = 28.sp)
                 }
             }}}}
+
+
+@SuppressLint("MissingPermission")
+fun startLocationUpdates(context: Context) {
+
+    val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+
+    val request = LocationRequest.Builder(
+        Priority.PRIORITY_HIGH_ACCURACY,
+        5000 // كل 5 ثواني
+    ).build()
+
+    val callback = object : LocationCallback() {
+        override fun onLocationResult(result: LocationResult) {
+
+            val location = result.lastLocation ?: return
+
+            val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+
+            FirebaseFirestore.getInstance()
+                .collection("Users")
+                .document(uid)
+                .update(
+                    "latitude", location.latitude,
+                    "longitude", location.longitude
+                )
+        }
+    }
+
+    fusedLocationClient.requestLocationUpdates(
+        request,
+        callback,
+        Looper.getMainLooper()
+    )
+}

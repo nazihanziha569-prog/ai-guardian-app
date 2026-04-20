@@ -9,6 +9,7 @@ import com.example.ai_guardian.data.model.User
 import com.example.ai_guardian.data.repository.UserRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.launch
 
 class AuthViewModel(
@@ -42,7 +43,17 @@ class AuthViewModel(
             val result = repo.login(email, password)
 
             result.onSuccess {
+
                 val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return@onSuccess
+
+                // 🔥 خزن fcmToken
+                FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
+
+                    FirebaseFirestore.getInstance()
+                        .collection("Users")
+                        .document(uid)
+                        .update("fcmToken", token)
+                }
 
                 FirebaseFirestore.getInstance()
                     .collection("Users")
@@ -78,7 +89,8 @@ class AuthViewModel(
                 nom = name,
                 email = email,
                 role = role,
-                isOnline = false
+                isOnline = false,
+                phone = phone
             )
 
             val result = repo.register(user, password)
@@ -95,16 +107,61 @@ class AuthViewModel(
     fun loadSurveilles() {
 
         val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val db = FirebaseFirestore.getInstance()
 
-        FirebaseFirestore.getInstance()
-            .collection("Users")
-            .whereEqualTo("supervisorId", currentUserId)
+        // 🔥 1. نجيب associations متاع supervisor
+        db.collection("Associations")
+            .whereEqualTo("superviseurId", currentUserId)
             .get()
             .addOnSuccessListener { result ->
 
-                val list = result.mapNotNull { it.toObject(User::class.java) }
+                val surveilleIds = result.mapNotNull {
+                    it.getString("superviseeId")
+                }
 
-                surveilles = list
+                if (surveilleIds.isEmpty()) {
+                    surveilles = emptyList()
+                    return@addOnSuccessListener
+                }
+
+                // 🔥 2. نجيب users بالـ ids
+                db.collection("Users")
+                    .whereIn("uid", surveilleIds)
+                    .get()
+                    .addOnSuccessListener { usersResult ->
+
+                        val list = usersResult.mapNotNull {
+                            it.toObject(User::class.java)
+                        }
+
+                        surveilles = list
+                    }
+            }
+    }
+    var alertsCount by mutableStateOf<Map<String, Int>>(emptyMap())
+
+    fun loadAlertsCount() {
+
+        val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: return
+
+        FirebaseFirestore.getInstance()
+            .collection("Alerts")
+            .whereEqualTo("superviseurId", currentUserId)
+            .addSnapshotListener { snapshot, _ ->
+
+                if (snapshot != null) {
+
+                    val counts = mutableMapOf<String, Int>()
+
+                    for (doc in snapshot.documents) {
+
+                        val userId = doc.getString("superviseeId") ?: continue
+
+                        counts[userId] = counts.getOrDefault(userId, 0) + 1
+                    }
+
+                    alertsCount = counts
+                }
             }
     }
 }

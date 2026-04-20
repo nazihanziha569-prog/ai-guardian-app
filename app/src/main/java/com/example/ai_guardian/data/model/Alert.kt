@@ -2,6 +2,7 @@ package com.example.ai_guardian.data.model
 
 data class Alert(
     val id: String = "",
+    val superviseeName: String = "",
     val superviseeId: String = "",
     val superviseurId: String = "",
     val type: String = "",

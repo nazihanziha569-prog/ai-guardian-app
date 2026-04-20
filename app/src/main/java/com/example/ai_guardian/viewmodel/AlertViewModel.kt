@@ -8,68 +8,77 @@ import com.google.firebase.firestore.FirebaseFirestore
 
 class AlertViewModel : ViewModel() {
 
-    // 🔥 state باش نستعملوه في UI
-    var alerts by mutableStateOf<List<Alert>>(emptyList())
+    private val db = FirebaseFirestore.getInstance()
+    private val auth = FirebaseAuth.getInstance()
 
-    // ✅ إرسال alert (عندك)
+    var alerts by mutableStateOf<List<Alert>>(emptyList())
+        private set
+
     fun sendAlert(
         type: String,
         message: String,
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
-        val db = FirebaseFirestore.getInstance()
-        val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
+        val currentUserId = auth.currentUser?.uid
 
         if (currentUserId == null) {
             onError("User non connecté")
             return
         }
 
-        db.collection("Users")
-            .document(currentUserId)
+        db.collection("Associations")
+            .whereEqualTo("superviseeId", currentUserId)
             .get()
-            .addOnSuccessListener { doc ->
+            .addOnSuccessListener { result ->
 
-                val superviseurId = doc.getString("supervisorId")
-
-                if (superviseurId == null) {
+                if (result.isEmpty) {
                     onError("Pas de superviseur ❌")
                     return@addOnSuccessListener
                 }
 
-                val alert = hashMapOf(
-                    "superviseeId" to currentUserId,
-                    "superviseurId" to superviseurId,
-                    "type" to type,
-                    "message" to message,
-                    "timestamp" to System.currentTimeMillis()
-                )
+                val superviseurId = result.documents.first()
+                    .getString("superviseurId") ?: ""
 
-                db.collection("Alerts")
-                    .add(alert)
-                    .addOnSuccessListener { onSuccess() }
-                    .addOnFailureListener {
-                        onError(it.message ?: "Erreur")
+                db.collection("Users")
+                    .document(currentUserId)
+                    .get()
+                    .addOnSuccessListener { userDoc ->
+
+                        val nom = userDoc.getString("nom") ?: "Unknown"
+
+                        val alert = hashMapOf(
+                            "superviseeId" to currentUserId,
+                            "superviseeName" to nom,
+                            "superviseurId" to superviseurId,
+                            "type" to type,
+                            "message" to message,
+                            "timestamp" to System.currentTimeMillis()
+                        )
+
+                        db.collection("Alerts")
+                            .add(alert)
+                            .addOnSuccessListener { onSuccess() }
+                            .addOnFailureListener {
+                                onError(it.message ?: "Erreur")
+                            }
                     }
             }
     }
 
     fun listenAlerts() {
 
-        val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val currentUserId = auth.currentUser?.uid ?: return
 
-        FirebaseFirestore.getInstance()
-            .collection("Alerts")
+        db.collection("Alerts")
             .whereEqualTo("superviseurId", currentUserId)
             .addSnapshotListener { snapshot, _ ->
 
                 if (snapshot != null) {
-                    alerts = snapshot.documents.mapNotNull {
-                        it.toObject(Alert::class.java)
+                    alerts = snapshot.documents.mapNotNull { doc ->
+                        doc.toObject(Alert::class.java)?.copy(id = doc.id)
                     }
                 }
             }
     }
-
 }

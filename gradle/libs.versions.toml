@@ -13,9 +13,12 @@ firebaseFirestoreKtx = "26.1.2"
 uiText = "1.10.6"
 foundation = "1.10.6"
 material3 = "1.4.0"
+
 foundationLayout = "1.10.6"
 lifecycleViewmodelKtx = "2.10.0"
 firebaseMessagingKtx = "25.0.1"
+
+media3Exoplayer = "1.10.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -40,6 +43,8 @@ androidx-material3 = { group = "androidx.compose.material3", name = "material3",
 androidx-compose-foundation-layout = { group = "androidx.compose.foundation", name = "foundation-layout", version.ref = "foundationLayout" }
 androidx-lifecycle-viewmodel-ktx = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-ktx", version.ref = "lifecycleViewmodelKtx" }
 firebase-messaging = { module = "com.google.firebase:firebase-messaging", version = "24.0.0" }
+androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3Exoplayer" }
+
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

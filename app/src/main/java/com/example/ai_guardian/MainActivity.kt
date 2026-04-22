@@ -25,6 +25,7 @@ import com.example.ai_guardian.ui.screens.RegisterSurveilleScreen
 import com.example.ai_guardian.ui.screens.RoleSelectionScreen
 import com.example.ai_guardian.ui.screens.AboutScreen
 import com.example.ai_guardian.ui.screens.AdminDashboardScreen
+import com.example.ai_guardian.ui.screens.DetailsScreen
 import com.example.ai_guardian.viewmodel.AlertViewModel
 import com.google.firebase.firestore.FirebaseFirestore
 @androidx.annotation.RequiresApi(26)
@@ -197,6 +198,7 @@ class MainActivity : ComponentActivity() {
                 composable("dashboard") {
                     DashboardScreen(
                         authViewModel = authViewModel,
+                        navController = navController,
                         onQrClick = { navController.navigate("qr") },
                         onLogoutClick = {
                             navController.navigate("login") {
@@ -216,6 +218,12 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     )
+                }
+                composable("details/{userId}") { backStackEntry ->
+
+                    val userId = backStackEntry.arguments?.getString("userId") ?: ""
+
+                    DetailsScreen(userId = userId)
                 }
 
                 // 🔹 Generate QR

@@ -4,9 +4,13 @@
     <!-- 🔥 IMPORTANT: Camera permission -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.CAMERA"/>
+
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+
     <uses-feature
         android:name="android.hardware.camera"
         android:required="false" />
+
 
     <application
         android:allowBackup="true"
@@ -24,6 +28,10 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT"/>
             </intent-filter>
         </service>
+
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyChM5nPx2UyoIddw6nQUjSa6BZYcKpWn9Q"/>
 
 
         <activity

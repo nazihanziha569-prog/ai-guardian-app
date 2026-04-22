@@ -1,5 +1,7 @@
 package com.example.ai_guardian
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -22,15 +24,16 @@ import com.example.ai_guardian.ui.screens.RegisterSuperviseurScreen
 import com.example.ai_guardian.ui.screens.RegisterSurveilleScreen
 import com.example.ai_guardian.ui.screens.RoleSelectionScreen
 import com.example.ai_guardian.ui.screens.AboutScreen
+import com.example.ai_guardian.ui.screens.AdminDashboardScreen
 import com.example.ai_guardian.viewmodel.AlertViewModel
 import com.google.firebase.firestore.FirebaseFirestore
-
+@androidx.annotation.RequiresApi(26)
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
+        createNotificationChannel()
         setContent {
 
             val navController = rememberNavController()
@@ -50,10 +53,21 @@ class MainActivity : ComponentActivity() {
                 navController = navController,
                 startDestination = startDestination
             ) {
+                composable("admin_dashboard") {
+                    AdminDashboardScreen(
+                        onLogoutClick = {
+                            FirebaseAuth.getInstance().signOut()
+                            navController.navigate("login") {
+                                popUpTo("admin_dashboard") { inclusive = true }
+                            }
+                        }
+                    )
+                }
 
                 // 🔹 Splash (optionnel)
                 composable("splash") {
                     SplashScreen {
+
                         val uid = FirebaseAuth.getInstance().currentUser?.uid
 
                         if (uid != null) {
@@ -65,8 +79,12 @@ class MainActivity : ComponentActivity() {
                                 .addOnSuccessListener { doc ->
 
                                     val role = doc.getString("role")
-
-                                    if (role == "superviseur") {
+                                    if (role == "admin") {
+                                        navController.navigate("admin_dashboard") {
+                                            popUpTo("splash") { inclusive = true }
+                                        }
+                                    }
+                                    else if (role == "superviseur") {
                                         navController.navigate("dashboard") {
                                             popUpTo("splash") { inclusive = true }
                                         }
@@ -132,12 +150,13 @@ class MainActivity : ComponentActivity() {
                         onRegisterClick = { navController.navigate("role") },
                         onLoginSuccess = { role ->
 
-                            if (role == "superviseur") {
-                                navController.navigate("dashboard")
-                            } else {
-                                navController.navigate("dashboard_surveille")
-                            }
+                            when (role) {
+                                "admin" -> navController.navigate("admin_dashboard")
 
+                                "superviseur" -> navController.navigate("dashboard")
+
+                                else -> navController.navigate("dashboard_surveille")
+                            }
                         },
                         onScanClick = { navController.navigate("qr_scan") }
 
@@ -220,6 +239,21 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+        }
+    }
+
+    private fun createNotificationChannel() {
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+
+            val channel = NotificationChannel(
+                "alerts_channel",
+                "Alerts",
+                NotificationManager.IMPORTANCE_HIGH
+            )
+
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
         }
     }
    }

@@ -1,4 +1,5 @@
 package com.example.ai_guardian.data.model
+@com.google.firebase.firestore.IgnoreExtraProperties
 
 data class Alert(
     val id: String = "",

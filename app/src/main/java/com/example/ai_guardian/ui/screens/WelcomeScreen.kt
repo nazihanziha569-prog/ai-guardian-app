@@ -1,18 +1,25 @@
 package com.example.ai_guardian.ui.screens
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Button
-import androidx.compose.material3.Text
+
+import androidx.compose.foundation.shape.RoundedCornerShape
+
+import androidx.compose.material3.*
+
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.*
+
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
 import com.example.ai_guardian.R
 
 
@@ -26,12 +33,13 @@ fun WelcomeScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(Color(0xFFF5F7FA)) // نفس الخلفية
             .padding(24.dp),
         verticalArrangement = Arrangement.SpaceBetween,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
 
-        // Top Content
+        // 🔝 TOP CONTENT
         Column(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -41,40 +49,64 @@ fun WelcomeScreen(
             Image(
                 painter = painterResource(id = R.drawable.logo),
                 contentDescription = "Logo",
-                modifier = Modifier.size(140.dp)
+                modifier = Modifier.size(120.dp)
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             Text(
                 text = "AI Guardian",
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Bold
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF1976D2)
             )
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(30.dp))
 
-            Button(
-                onClick = onLoginClick,
-                modifier = Modifier.fillMaxWidth()
+            // 🟦 CARD
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(8.dp)
             ) {
-                Text("Se connecter")
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Column(
+                    modifier = Modifier.padding(20.dp)
+                ) {
 
-            Button(
-                onClick = onRegisterClick,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("S’inscrire")
+                    Button(
+                        onClick = onLoginClick,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF1976D2)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Se connecter", color = Color.White)
+                    }
+
+                    Spacer(modifier = Modifier.height(15.dp))
+
+                    OutlinedButton(
+                        onClick = onRegisterClick,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            "S’inscrire",
+                            color = Color(0xFF1976D2)
+                        )
+                    }
+                }
             }
         }
 
-        //A propos
+        // 🔽 BOTTOM (About)
         Text(
             text = "À propos",
-            color = Color.Gray,
+            color = Color(0xFF1976D2),
+            fontWeight = FontWeight.Medium,
             modifier = Modifier
                 .padding(bottom = 20.dp)
                 .clickable { onAboutClick() }

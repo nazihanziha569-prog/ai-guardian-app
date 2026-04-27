@@ -99,7 +99,7 @@ class AdminViewModel : ViewModel() {
         val normal = alerts.count { it.type == "normal" }
 
         stats = Stats(
-            total = users.size,
+           total = admins + sup + surv,
             admins = admins,
             superviseurs = sup,
             surveilles = surv,
@@ -115,5 +115,28 @@ class AdminViewModel : ViewModel() {
     fun refreshData() {
         loadUsers()
         loadAlerts()
+    }
+    // ================= SETTINGS =================
+
+    fun clearAllAlerts() {
+        db.collection("Alerts")
+            .get()
+            .addOnSuccessListener { snap ->
+                snap.documents.forEach { it.reference.delete() }
+            }
+    }
+
+    fun resetAllUsers() {
+        db.collection("Users")
+            .whereNotEqualTo("role", "admin")
+            .get()
+            .addOnSuccessListener { snap ->
+                snap.documents.forEach { it.reference.delete() }
+            }
+    }
+
+    fun makeAdmin(uid: String) {
+        db.collection("Users").document(uid)
+            .update("role", "admin")
     }
 }

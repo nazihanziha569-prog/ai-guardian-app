@@ -81,4 +81,19 @@ class AlertViewModel : ViewModel() {
                 }
             }
     }
+    fun listenMyAlerts() {
+
+        val currentUserId = auth.currentUser?.uid ?: return
+
+        db.collection("Alerts")
+            .whereEqualTo("superviseeId", currentUserId)
+            .addSnapshotListener { snapshot, _ ->
+
+                if (snapshot != null) {
+                    alerts = snapshot.documents.mapNotNull { doc ->
+                        doc.toObject(Alert::class.java)?.copy(id = doc.id)
+                    }
+                }
+            }
+    }
 }

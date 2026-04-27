@@ -1,7 +1,9 @@
 package com.example.ai_guardian.ui.screens
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,6 +16,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,12 +34,39 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.example.ai_guardian.R
+import com.example.ai_guardian.ui.components.RatingBar
+import com.example.ai_guardian.viewmodel.RatingViewModel
+
 @Composable
 fun AboutScreen(onBack: () -> Unit) {
+    val ratingViewModel = remember { RatingViewModel() }
 
+    var rating by remember { mutableStateOf(0) }
     var isFrench by remember { mutableStateOf(true) }
 
     val context = LocalContext.current
+
+    val exoPlayer = remember {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(
+                MediaItem.fromUri(
+                    "android.resource://${context.packageName}/${R.raw.video}"
+                )
+            )
+            prepare()
+            playWhenReady = true
+        }
+    }
+
+    DisposableEffect(Unit) {
+
+        onDispose {
+            exoPlayer.stop()
+            exoPlayer.release()
+        }
+    }
+
+
 
     val textFR = """
 AI Guardian est une solution intelligente de sécurité numérique conçue pour protéger les personnes en temps réel.
@@ -64,22 +94,6 @@ AI Guardian هو تطبيق ذكي للحماية الرقمية.
 يوفر التطبيق حماية مستمرة وراحة بال للمستخدمين والعائلات.
 """.trimIndent()
 
-    val exoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
-            val mediaItem = MediaItem.fromUri(
-                "android.resource://${context.packageName}/${R.raw.video}"
-            )
-            setMediaItem(mediaItem)
-            prepare()
-            playWhenReady = true
-        }
-    }
-
-    fun stopVideo() {
-        exoPlayer.stop()
-        exoPlayer.release()
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -88,7 +102,7 @@ AI Guardian هو تطبيق ذكي للحماية الرقمية.
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
 
-        // 🔷 HEADER (logo + title)
+        // LOGO
         Image(
             painter = painterResource(R.drawable.logo),
             contentDescription = null,
@@ -96,76 +110,86 @@ AI Guardian هو تطبيق ذكي للحماية الرقمية.
         )
 
         Text(
-            text = "AI Guardian",
+            "AI Guardian",
             fontSize = 26.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF1976D2)
         )
 
         Text(
-            text = "Premium Security App",
+            "Smart Security App",
             fontSize = 14.sp,
             color = Color.Gray
         )
 
-        Spacer(modifier = Modifier.height(15.dp))
+        Spacer(Modifier.height(16.dp))
 
-        // 🎥 VIDEO (premium style)
-        AndroidView(
-            factory = {
-                PlayerView(it).apply {
-                    player = exoPlayer
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(220.dp)
+        // VIDEO
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color.Black),
+            elevation = CardDefaults.cardElevation(6.dp)
+        ) {
+            AndroidView(
+                factory = { PlayerView(it).apply { player = exoPlayer } },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(220.dp)
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        Button(onClick = { isFrench = !isFrench }) {
+            Text(if (isFrench) "Switch AR" else "FR")
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        // DESCRIPTION CARD
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(6.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = if (isFrench) textFR else textAR,
+                modifier = Modifier.padding(16.dp),
+                fontSize = 14.sp
+            )
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // ⭐ RATING SECTION (clean reusable)
+        Text(
+            "Rate AI Guardian",
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp,
+            color = Color(0xFF1976D2)
         )
 
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // 🌍 LANGUAGE SWITCH
-        Button(onClick = { isFrench = !isFrench }) {
-            Text(if (isFrench) "Switch to AR" else "FR")
-        }
-
-        Spacer(modifier = Modifier.height(15.dp))
-
-        // 🧠 FEATURES CARDS STYLE
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            elevation = CardDefaults.cardElevation(6.dp)
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(
-                    text = if (isFrench) textFR else textAR,
-                    fontSize = 15.sp
-                )
+        RatingBar(
+            rating = rating,
+            onRatingChanged = {
+                rating = it
+                ratingViewModel.sendRating(it) // 🔥 SAVE TO FIREBASE
             }
-        }
+        )
 
-        Spacer(modifier = Modifier.height(15.dp))
+        Text(
+            text = when (rating) {
+                5 -> "🔥 Excellent"
+                4 -> "👍 Very good"
+                3 -> "🙂 Good"
+                2 -> "😐 Average"
+                1 -> "👎 Bad"
+                else -> "Tap stars"
+            },
+            color = Color.Gray
+        )
 
-        // ⭐ FAKE REVIEWS (pro touch)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            elevation = CardDefaults.cardElevation(6.dp)
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text("⭐ 4.8 / 5")
-                Text("“Application très utile pour la sécurité des enfants”")
-                Text("“Interface simple et efficace”")
-                Text("“Meilleure app de surveillance”")
-            }
-        }
+        Spacer(Modifier.height(20.dp))
 
-        Spacer(modifier = Modifier.height(20.dp))
 
-        // 🔙 BACK BUTTON
-        Button(onClick = {
-            stopVideo()
-            onBack()
-        }) {
-            Text("Retour")
-        }
     }
 }

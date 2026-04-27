@@ -8,6 +8,7 @@ data class User(
     val age: Any? = null,
     val role: String = "",
     val isOnline: Boolean = false,
+    var lastSeen: Long = 0L,
     val imageUrl: String = "",
     val phone: String = "",
     var latitude: Double = 0.0,

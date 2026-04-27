@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.*
+import androidx.navigation.NavController
 import androidx.navigation.compose.*
 import com.example.ai_guardian.ui.screens.DashboardScreen
 import com.example.ai_guardian.ui.screens.GenerateQRScreen
@@ -23,18 +24,34 @@ import com.example.ai_guardian.ui.screens.RegisterSurveilleScreen
 import com.example.ai_guardian.ui.screens.RoleSelectionScreen
 import com.example.ai_guardian.ui.screens.AboutScreen
 import com.example.ai_guardian.ui.screens.DetailsScreen
+import com.example.ai_guardian.ui.screens.RappelScreen
+import com.example.ai_guardian.ui.screens.AlarmScreen
 import com.example.ai_guardian.viewmodel.AlertViewModel
 import com.google.firebase.firestore.FirebaseFirestore
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
+import android.os.Build
+import android.Manifest
+import android.app.Notification
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.media3.common.util.NotificationUtil.createNotificationChannel
+import com.example.ai_guardian.audio.AlarmHolder
+import com.example.ai_guardian.audio.AlarmSoundManager
+import com.example.ai_guardian.ui.screens.IncomingCallScreen
 
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        createNotificationChannel()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        AlarmHolder.soundManager = AlarmSoundManager(this)
+
         setContent {
 
-            val navController = rememberNavController()
             val qrViewModel = remember { QRViewModel() }
 
             val firebaseDataSource = remember { FirebaseDataSource() }
@@ -46,6 +63,36 @@ class MainActivity : ComponentActivity() {
             }
             // ✅ auto login
             val startDestination = "splash"
+            val permissionLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { isGranted ->
+                if (isGranted) {
+                    // permission OK
+                } else {
+                    // permission denied (optional handle)
+                }
+            }
+            val permissionGranted = remember { mutableStateOf(false) }
+
+
+
+            val navController = rememberNavController()
+
+            val alarmMessage = remember {
+                    mutableStateOf<String?>(null)
+                }
+
+                LaunchedEffect(Unit) {
+                    alarmMessage.value = intent.getStringExtra("alarm_message")
+                }
+
+                LaunchedEffect(alarmMessage.value) {
+                    alarmMessage.value?.let { msg ->
+                        navController.navigate("alarm_screen/$msg")
+                    }}
+
+
+
 
             NavHost(
                 navController = navController,
@@ -193,6 +240,7 @@ class MainActivity : ComponentActivity() {
 
                     DashboardSurveilleScreen(
                         alertViewModel = alertViewModel,
+                        navController = navController,
                         onLogoutClick = {
                             navController.navigate("login") {
                                 popUpTo("dashboard_surveille") { inclusive = true }
@@ -214,6 +262,9 @@ class MainActivity : ComponentActivity() {
                         onBack = { navController.popBackStack() }
                     )
                 }
+                composable("rappel") {
+                    RappelScreen()
+                }
 
                 // 🔹 Scan QR
                 composable("qr_scan") {
@@ -227,7 +278,42 @@ class MainActivity : ComponentActivity() {
                         }
                     )
                 }
+
+                composable("alarm/{message}") { backStack ->
+                    val msg = backStack.arguments?.getString("message") ?: ""
+                    AlarmScreen(message = msg, onStop = { navController.popBackStack() })
+                }
+                composable("incoming_call/{from}/{callId}") { backStackEntry ->
+
+                    val from = backStackEntry.arguments?.getString("from") ?: ""
+                    val callId = backStackEntry.arguments?.getString("callId") ?: ""
+
+                    IncomingCallScreen(
+                        navController = navController,
+                        fromUser = from,
+                        callId = callId,
+                        onAccept = {},
+                        onReject = {}
+                    )
+                }
             }
+        }
+    }
+    private fun createNotificationChannel() {
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+
+            val channel = NotificationChannel(
+                "alarm_channel",
+                "Alarms",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Alarm Notifications"
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            }
+
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.createNotificationChannel(channel)
         }
     }
    }

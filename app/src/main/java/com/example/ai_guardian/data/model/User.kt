@@ -13,8 +13,8 @@ data class User(
     val imageUrl: String = "",
     val phone: String = "",
     val blocked: Boolean = false,
-    val latitude: Double? = null,
     val supervisorId: String = "",
     val fcmToken: String = "",
-    var longitude: Double = 0.0
+    val latitude: Double? = null,
+    val longitude: Double? = null
 )

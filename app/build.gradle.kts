@@ -1,3 +1,4 @@
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -7,11 +8,7 @@ plugins {
 
 android {
     namespace = "com.example.ai_guardian"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.ai_guardian"
@@ -42,7 +39,8 @@ android {
 }
 
 dependencies {
-    implementation(platform("com.google.firebase:firebase-bom:34.11.0"))
+
+    implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-auth")
@@ -70,6 +68,9 @@ dependencies {
     implementation(libs.androidx.compose.ui.text)
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.compose.foundation.layout)
+    implementation(libs.androidx.lifecycle.viewmodel.ktx)
+
     implementation(libs.androidx.media3.exoplayer)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
@@ -79,6 +80,23 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     implementation("androidx.media3:media3-exoplayer:1.3.1")
     implementation("androidx.media3:media3-ui:1.3.1")
+
+    implementation("io.coil-kt:coil-compose:2.5.0")
+    implementation("com.google.firebase:firebase-storage-ktx")
+
+    implementation("com.patrykandpatrick.vico:compose:1.13.1")
+    implementation("com.patrykandpatrick.vico:core:1.13.1")
+
+    //
+
+    implementation("com.google.firebase:firebase-messaging")
+
+    implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
+    implementation("com.patrykandpatrick.vico:compose:1.13.1")
+    implementation("com.patrykandpatrick.vico:core:1.13.1")
+
+    implementation("androidx.media3:media3-exoplayer:1.3.1")
 }

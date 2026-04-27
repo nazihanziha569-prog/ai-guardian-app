@@ -1,6 +1,8 @@
 package com.example.ai_guardian.data.model
 
 
+@com.google.firebase.firestore.IgnoreExtraProperties
+
 data class User(
     val uid: String = "",
     val nom: String = "",
@@ -11,6 +13,9 @@ data class User(
     var lastSeen: Long = 0L,
     val imageUrl: String = "",
     val phone: String = "",
-    var latitude: Double = 0.0,
-    var longitude: Double = 0.0
+    val blocked: Boolean = false,
+    val supervisorId: String = "",
+    val fcmToken: String = "",
+    val latitude: Double? = null,
+    val longitude: Double? = null
 )

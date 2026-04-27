@@ -25,6 +25,8 @@ class AuthViewModel(
     var age by mutableStateOf("")
     var phone by mutableStateOf("")
 
+    var imageUri by mutableStateOf<android.net.Uri?>(null)
+
     // 🔥 لازم هنا (داخل الكلاس)
     var surveilles by mutableStateOf<List<User>>(emptyList())
 

@@ -119,6 +119,12 @@ fun HomeContent(
         }
     }
 }
+fun isUserOnline(user: User): Boolean {
+    val last = user.lastSeen ?: 0L
+    val now = System.currentTimeMillis()
+
+    return (now - last) < 10000 // 10 sec rule
+}
 @Composable
 fun UserCard(
     user: User,
@@ -193,21 +199,22 @@ fun UserCard(
 
                 // STATUS
                 Column(horizontalAlignment = Alignment.End) {
-
+                    val online = isUserOnline(user)
                     Box(
                         modifier = Modifier
                             .size(10.dp)
                             .clip(CircleShape)
                             .background(
-                                if (user.isOnline) Color(0xFF4CAF50)
-                                else Color(0xFFF44336)
+
+                        if (online) Color(0xFF4CAF50)
+                        else Color(0xFFF44336)
                             )
                     )
 
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Text(
-                        text = if (user.isOnline) "Online" else "Offline",
+                        text = if (online) "🟢 Online" else "🔴 Offline",
                         fontSize = 11.sp,
                         color = Color.Gray
                     )

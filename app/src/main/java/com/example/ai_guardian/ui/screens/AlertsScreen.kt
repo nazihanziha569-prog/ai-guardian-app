@@ -14,12 +14,17 @@ import com.example.ai_guardian.ui.components.AlertCard
 import com.example.ai_guardian.viewmodel.AlertViewModel
 
 @Composable
-fun AlertsScreen() {
+fun AlertsScreen(isSupervisor: Boolean) {
 
     val viewModel = remember { AlertViewModel() }
 
     LaunchedEffect(Unit) {
-        viewModel.listenAlerts()
+
+        if (isSupervisor) {
+            viewModel.listenAlerts()       // 🧑‍💼
+        } else {
+            viewModel.listenMyAlerts()    // 👤
+        }
     }
 
     val alerts = viewModel.alerts

@@ -40,9 +40,10 @@ fun DetailsScreen(userId: String) {
 
         db.collection("Users")
             .document(userId)
-            .get()
-            .addOnSuccessListener {
-                user = it.toObject(User::class.java)
+            .addSnapshotListener { snapshot, _ ->
+                if (snapshot != null && snapshot.exists()) {
+                    user = snapshot.toObject(User::class.java)
+                }
             }
 
         db.collection("Alerts")
@@ -55,6 +56,7 @@ fun DetailsScreen(userId: String) {
                 }
             }
     }
+    println("USER ONLINE STATUS = ${user?.isOnline}")
 
     Column(
         modifier = Modifier
@@ -114,21 +116,26 @@ fun DetailsScreen(userId: String) {
                 }
 
                 // STATUS
+                val isOnline = user?.let {
+                    it.isOnline || (System.currentTimeMillis() - it.lastSeen < 10000)
+                } ?: false
                 Box(
                     modifier = Modifier
                         .background(
-                            if (user?.isOnline == true)
+                            if (isOnline)
                                 Color(0xFFE8F5E9)
-                            else Color(0xFFFFEBEE),
+                            else
+                                Color(0xFFFFEBEE),
                             shape = RoundedCornerShape(50)
                         )
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Text(
-                        text = if (user?.isOnline == true) "🟢 Online" else "🔴 Offline",
-                        color = if (user?.isOnline == true)
+                        text = if (isOnline) "🟢 Online" else "🔴 Offline",
+                        color = if (isOnline)
                             Color(0xFF2E7D32)
-                        else Color(0xFFC62828),
+                        else
+                            Color(0xFFC62828),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -167,31 +174,15 @@ fun UserLocationMap(latitude: Double, longitude: Double) {
         this.position = CameraPosition.fromLatLngZoom(position, 15f)
     }
 
-    val path = remember { mutableStateListOf<LatLng>() }
-
-    // كل ما تتبدل location نزيدها للـ path
-    LaunchedEffect(position) {
-        path.add(position)
-    }
-
     GoogleMap(
         modifier = Modifier
             .fillMaxWidth()
             .height(250.dp),
         cameraPositionState = cameraPositionState
     ) {
-
-        // 🔴 Marker
         Marker(
             state = MarkerState(position = position),
             title = "Position"
-        )
-
-        // 🔥 Polyline (الخط الأحمر)
-        Polyline(
-            points = path,
-            color = Color.Red,
-            width = 5f
         )
     }
 }

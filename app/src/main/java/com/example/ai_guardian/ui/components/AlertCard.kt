@@ -42,6 +42,15 @@ fun AlertCard(alert: Alert) {
             modifier = Modifier.padding(14.dp)
         ) {
 
+            //nom
+            Text(
+                text = "👤 ${alert.superviseeName}",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF1976D2)
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+
             // 🔖 TYPE BADGE
             Box(
                 modifier = Modifier
@@ -58,6 +67,7 @@ fun AlertCard(alert: Alert) {
                     fontWeight = FontWeight.Bold
                 )
             }
+
 
             Spacer(modifier = Modifier.height(10.dp))
 

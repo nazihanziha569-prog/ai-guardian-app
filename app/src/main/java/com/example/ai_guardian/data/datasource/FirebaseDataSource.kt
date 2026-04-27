@@ -1,5 +1,6 @@
 package com.example.ai_guardian.data.datasource
 
+import com.example.ai_guardian.data.model.Rappel
 import com.example.ai_guardian.data.model.User
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -33,5 +34,29 @@ class FirebaseDataSource {
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+    // 🔥 ADD Rappel
+    suspend fun addRappel(rappel: Rappel) {
+        db.collection("Rappels")
+            .document(rappel.id)
+            .set(rappel)
+            .await()
+    }
+
+    // 🔥 LISTEN Rappels
+    fun listenRappels(
+        userId: String,
+        onChange: (List<Rappel>) -> Unit
+    ) {
+        db.collection("Rappels")
+            .whereEqualTo("userId", userId)
+            .addSnapshotListener { snapshot, _ ->
+
+                val list = snapshot?.documents?.mapNotNull {
+                    it.toObject(Rappel::class.java)?.copy(id = it.id)
+                } ?: emptyList()
+
+                onChange(list)
+            }
     }
 }

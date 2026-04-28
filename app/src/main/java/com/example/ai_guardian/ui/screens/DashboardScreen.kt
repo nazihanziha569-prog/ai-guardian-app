@@ -200,7 +200,10 @@ fun DashboardScreen(
                 "history" -> HistoryScreen()
                 "settings" -> SettingsScreen(
                     isDarkMode = isDarkMode,
-                    onToggleDarkMode = { isDarkMode = it }
+                    onToggleDarkMode = { isDarkMode = it },
+                    onProfileClick = {
+                        navController.navigate("profile")
+                    }
                 )
             }
 

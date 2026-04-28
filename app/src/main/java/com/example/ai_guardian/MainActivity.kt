@@ -26,6 +26,7 @@ import com.example.ai_guardian.ui.screens.DetailsScreen
 import com.example.ai_guardian.ui.screens.GenerateQRScreen
 import com.example.ai_guardian.ui.screens.IncomingCallScreen
 import com.example.ai_guardian.ui.screens.LoginScreen
+import com.example.ai_guardian.ui.screens.ProfileScreen
 import com.example.ai_guardian.ui.screens.QRScreen
 import com.example.ai_guardian.ui.screens.RappelScreen
 import com.example.ai_guardian.ui.screens.RegisterSuperviseurScreen
@@ -310,6 +311,19 @@ class MainActivity : ComponentActivity() {
                         callId = callId,
                         onAccept = {},
                         onReject = {}
+                    )
+                }
+                composable("profile") {
+                    ProfileScreen(
+                        viewModel = authViewModel,
+                        onBack = { navController.popBackStack() },
+                        onLogoutClick = {
+                            FirebaseAuth.getInstance().signOut()
+
+                            navController.navigate("login") {
+                                popUpTo("dashboard") { inclusive = true }
+                            }
+                        }
                     )
                 }
             }

@@ -127,7 +127,34 @@ fun LoginScreen(
                 Text(
                     text = "Mot de passe oublié ?",
                     color = Color(0xFF1976D2),
-                    modifier = Modifier.align(Alignment.End)
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .clickable {
+
+                            if (viewModel.email.isNotEmpty()) {
+
+                                viewModel.resetPassword(
+                                    email = viewModel.email,
+                                    onSuccess = {
+                                        Toast.makeText(
+                                            context,
+                                            "Email envoyé ✔️ check inbox",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    },
+                                    onError = {
+                                        Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    "Entrer votre email",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))

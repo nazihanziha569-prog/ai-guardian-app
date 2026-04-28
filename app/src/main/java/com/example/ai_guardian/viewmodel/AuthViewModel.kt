@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.ai_guardian.data.model.User
 import com.example.ai_guardian.data.repository.UserRepository
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.messaging.FirebaseMessaging
@@ -24,6 +25,7 @@ class AuthViewModel(
     var role by mutableStateOf("")
     var age by mutableStateOf("")
     var phone by mutableStateOf("")
+
 
     var imageUri by mutableStateOf<android.net.Uri?>(null)
 
@@ -138,6 +140,87 @@ class AuthViewModel(
 
                         surveilles = list
                     }
+            }
+    }
+
+    fun updateName(name: String) {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+
+        FirebaseFirestore.getInstance()
+            .collection("Users")
+            .document(uid)
+            .update("nom", name)
+    }
+    fun updateEmail(
+        newEmail: String,
+        password: String,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val user = FirebaseAuth.getInstance().currentUser ?: return
+
+        val credential = EmailAuthProvider.getCredential(user.email!!, password)
+
+        user.reauthenticate(credential)
+            .addOnCompleteListener { reauthTask ->
+
+                if (!reauthTask.isSuccessful) {
+                    onError("Wrong password or session expired")
+                    return@addOnCompleteListener
+                }
+
+                user.updateEmail(newEmail)
+                    .addOnCompleteListener { updateTask ->
+
+                        if (!updateTask.isSuccessful) {
+                            onError(updateTask.exception?.message ?: "Email update failed")
+                            return@addOnCompleteListener
+                        }
+
+                        // 🔥 IMPORTANT: update Firestore
+                        FirebaseFirestore.getInstance()
+                            .collection("Users")
+                            .document(user.uid)
+                            .update("email", newEmail)
+
+                        // 🔥 logout after success
+                        FirebaseAuth.getInstance().signOut()
+
+                        onSuccess()
+                    }
+            }
+    }
+    fun reAuth(oldPassword: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+
+        val user = FirebaseAuth.getInstance().currentUser ?: return
+
+        val email = user.email ?: return
+
+        val credential = EmailAuthProvider.getCredential(email, oldPassword)
+
+        user.reauthenticate(credential)
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { onError(it.message ?: "") }
+    }
+    fun changePassword(newPassword: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+
+        FirebaseAuth.getInstance().currentUser
+            ?.updatePassword(newPassword)
+            ?.addOnSuccessListener { onSuccess() }
+            ?.addOnFailureListener { onError(it.message ?: "") }
+    }
+    fun resetPassword(
+        email: String,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        FirebaseAuth.getInstance()
+            .sendPasswordResetEmail(email)
+            .addOnSuccessListener {
+                onSuccess()
+            }
+            .addOnFailureListener {
+                onError(it.message ?: "Erreur")
             }
     }
     var alertsCount by mutableStateOf<Map<String, Int>>(emptyMap())

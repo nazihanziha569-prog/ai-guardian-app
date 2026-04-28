@@ -24,10 +24,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
+import androidx.navigation.NavHostController
 
 @Composable
-fun SettingsScreen(isDarkMode: Boolean,
-                   onToggleDarkMode: (Boolean) -> Unit) {
+fun SettingsScreen(
+    isDarkMode: Boolean,
+    onToggleDarkMode: (Boolean) -> Unit,
+    onProfileClick: () -> Unit
+) {
 
     var isDarkMode by remember { mutableStateOf(false) }
 
@@ -45,7 +50,9 @@ fun SettingsScreen(isDarkMode: Boolean,
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        SettingsItem("👤 Profile")
+        SettingsItem("👤 Profile") {
+            onProfileClick()
+        }
         SettingsItem("🔔 Notifications")
         SettingsItem("📍 Location")
         SettingsItem("🚨 Alerts")

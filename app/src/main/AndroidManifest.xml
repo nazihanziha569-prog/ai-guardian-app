@@ -1,18 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
-    <!-- 🔥 IMPORTANT: Camera permission -->
+
+    <!-- Permissions -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.CAMERA"/>
-
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
-
-    <uses-feature
-        android:name="android.hardware.camera"
-        android:required="false" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
 
+
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-feature android:name="android.hardware.camera.front" android:required="false"/>
+    <uses-feature android:name="android.hardware.microphone" android:required="false"/>
 
     <application
         android:allowBackup="true"
@@ -23,18 +26,20 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.AI_guardian">
+
+        <!-- ✅ FIX: chemin corrigé — service est dans le package .service -->
         <service
-            android:name=".notifications.MyFirebaseMessagingService"
+            android:name=".service.MyFirebaseService"
             android:exported="false">
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT"/>
             </intent-filter>
         </service>
 
+        <!-- Google Maps API Key -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyChM5nPx2UyoIddw6nQUjSa6BZYcKpWn9Q"/>
-
 
         <activity
             android:name=".MainActivity"
@@ -42,20 +47,14 @@
             android:label="@string/app_name"
             android:theme="@style/Theme.AI_guardian"
             tools:targetApi="26">
-
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-
         </activity>
 
-        <receiver android:name=".receiver.AlarmReceiver" android:exported="false"/>
+        <receiver android:name=".receiver.AlarmReceiver"     android:exported="false"/>
         <receiver android:name=".receiver.StopAlarmReceiver" android:exported="false"/>
 
     </application>
-
-
-
-
 </manifest>

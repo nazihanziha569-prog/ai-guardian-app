@@ -27,7 +27,7 @@ fun AlertsScreen(isSupervisor: Boolean) {
         }
     }
 
-    val alerts = viewModel.alerts
+    val alerts = viewModel.alerts.sortedByDescending { it.timestamp }
 
     LazyColumn(
         modifier = Modifier

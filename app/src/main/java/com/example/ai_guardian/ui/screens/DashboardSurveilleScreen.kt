@@ -87,19 +87,37 @@ fun DashboardSurveilleScreen(
     LaunchedEffect(Unit) {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return@LaunchedEffect
 
-        FirebaseFirestore.getInstance().collection("Users").document(uid).update("isOnline", true)
+        FirebaseFirestore.getInstance()
+            .collection("Users")
+            .document(uid)
+            .get()
+            .addOnSuccessListener { userDoc ->
 
-        // ✅ Démarrer FallDetectionService
-        val fallServiceIntent = Intent(context, FallDetectionService::class.java)
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            context.startForegroundService(fallServiceIntent)
-        } else {
-            context.startService(fallServiceIntent)
-        }
+                val userName = userDoc.getString("nom") ?: "Utilisateur"
+
+                FirebaseFirestore.getInstance()
+                    .collection("Users")
+                    .document(uid)
+                    .update("isOnline", true)
+
+                // ✅ Démarrer FallDetectionService avec nom surveillé
+                val fallServiceIntent = Intent(context, FallDetectionService::class.java).apply {
+                    putExtra("SURVEILLE_NAME", userName)
+                }
+
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    context.startForegroundService(fallServiceIntent)
+                } else {
+                    context.startService(fallServiceIntent)
+                }
+            }
 
         ActivityCompat.requestPermissions(
             activity,
-            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.CALL_PHONE),
+            arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.CALL_PHONE
+            ),
             1
         )
 
@@ -115,15 +133,18 @@ fun DashboardSurveilleScreen(
                     val from   = doc.getString("from") ?: ""
                     val callId = doc.id
                     val route  = navController.currentDestination?.route ?: ""
+
                     if (!route.startsWith("incoming_call") &&
                         !route.startsWith("active_call")   &&
                         !route.startsWith("outgoing_call") &&
                         !route.startsWith("video_call")) {
+
                         navController.navigate("incoming_call/$from/$callId")
                     }
                 }
             }
     }
+
 
     DisposableEffect(Unit) {
         onDispose {

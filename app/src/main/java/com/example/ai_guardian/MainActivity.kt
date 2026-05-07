@@ -261,7 +261,7 @@ class MainActivity : ComponentActivity() {
 
                 composable("map_history/{userId}") { back ->
                         val uid = back.arguments?.getString("userId") ?: ""
-                        MapHistoryScreen(userId = uid)
+                         MapHistoryScreen(userId = uid)
                     }
 
                 // ── QR ────────────────────────────────────────────────────────

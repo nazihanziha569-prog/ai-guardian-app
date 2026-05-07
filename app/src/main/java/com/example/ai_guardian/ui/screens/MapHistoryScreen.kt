@@ -22,7 +22,7 @@ import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
 
 @Composable
-fun MapHistoryScreen() {
+fun MapHistoryScreen(userId: String) {
     val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
     val db = FirebaseFirestore.getInstance()
 
@@ -31,7 +31,7 @@ fun MapHistoryScreen() {
 
     LaunchedEffect(Unit) {
         db.collection("LocationHistory")
-            .document(uid)
+            .document(userId)
             .collection("points")
             .orderBy("timestamp")
             .get()

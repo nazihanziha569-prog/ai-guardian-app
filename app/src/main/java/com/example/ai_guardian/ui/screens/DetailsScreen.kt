@@ -202,7 +202,7 @@ private fun TabDetails(userId: String, navController: NavController, callVM: Cal
 
                             Button(
                                 onClick = {
-                                    navController.navigate("map_screen/${u.latitude}/${u.longitude}/${u.nom}")
+                                    navController.navigate("map_history/$userId")
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),

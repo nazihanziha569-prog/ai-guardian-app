@@ -258,13 +258,11 @@ class MainActivity : ComponentActivity() {
                         eglBase       = eglBase    // ✅ maintenant accessible
                     )
                 }
-                composable("map_screen/{lat}/{lng}/{name}") { backStackEntry ->
-                    val lat = backStackEntry.arguments?.getString("lat")!!.toDouble()
-                    val lng = backStackEntry.arguments?.getString("lng")!!.toDouble()
-                    val name = backStackEntry.arguments?.getString("name")!!
 
-                    MapHistoryScreen()
-                }
+                composable("map_history/{userId}") { back ->
+                        val uid = back.arguments?.getString("userId") ?: ""
+                        MapHistoryScreen(userId = uid)
+                    }
 
                 // ── QR ────────────────────────────────────────────────────────
                 composable("qr") {

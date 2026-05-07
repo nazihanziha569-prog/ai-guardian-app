@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ai_guardian.data.model.Call
 import com.example.ai_guardian.utils.formatTime
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
 
 @Composable
@@ -50,6 +51,19 @@ fun CallCard(call: Call, currentUid: String?) {
         "rejected" -> "❌ Refusé"
         "missed"   -> "📵 Manqué"
         else       -> "⏳ En attente"
+    }
+    var fromName by remember { mutableStateOf(call.from) }
+    var toName   by remember { mutableStateOf(call.to) }
+    val db = FirebaseFirestore.getInstance()
+
+    LaunchedEffect(call.id) {
+        db.collection("Users").document(call.from).get().addOnSuccessListener {
+            fromName = it.getString("nom") ?: call.from
+        }
+
+        db.collection("Users").document(call.to).get().addOnSuccessListener {
+            toName = it.getString("nom") ?: call.to
+        }
     }
 
     Card(
@@ -96,7 +110,7 @@ fun CallCard(call: Call, currentUid: String?) {
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text       = if (isOutgoing) "📞 Vers : ${call.to}" else "📞 De : ${call.from}",
+                    text       = if (isOutgoing) "📞 Vers : $toName" else "📞 De : $fromName",
                     fontSize   = 13.sp,
                     color      = Color(0xFF333333),
                     fontWeight = FontWeight.Medium

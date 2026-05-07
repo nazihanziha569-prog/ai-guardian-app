@@ -198,6 +198,20 @@ private fun TabDetails(userId: String, navController: NavController, callVM: Cal
                             }
                             Spacer(Modifier.height(8.dp))
                             Text("📍 %.5f, %.5f".format(u.latitude, u.longitude), fontSize = 12.sp, color = DBlue)
+                            Spacer(Modifier.height(10.dp))
+
+                            Button(
+                                onClick = {
+                                    navController.navigate("map_screen/${u.latitude}/${u.longitude}/${u.nom}")
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = DBlue)
+                            ) {
+                                Icon(Icons.Default.Map, contentDescription = null, tint = Color.White)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Afficher sur la carte", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }

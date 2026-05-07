@@ -1,5 +1,6 @@
 package com.example.ai_guardian
 
+import MapHistoryScreen
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -49,7 +50,7 @@ import livekit.org.webrtc.EglBase
 
 
 
-@androidx.annotation.RequiresApi(26)
+
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -256,6 +257,13 @@ class MainActivity : ComponentActivity() {
                         callVM        = callVM,    // ✅ maintenant accessible
                         eglBase       = eglBase    // ✅ maintenant accessible
                     )
+                }
+                composable("map_screen/{lat}/{lng}/{name}") { backStackEntry ->
+                    val lat = backStackEntry.arguments?.getString("lat")!!.toDouble()
+                    val lng = backStackEntry.arguments?.getString("lng")!!.toDouble()
+                    val name = backStackEntry.arguments?.getString("name")!!
+
+                    MapHistoryScreen()
                 }
 
                 // ── QR ────────────────────────────────────────────────────────

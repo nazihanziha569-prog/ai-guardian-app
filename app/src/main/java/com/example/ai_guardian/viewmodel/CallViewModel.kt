@@ -27,7 +27,7 @@ class CallViewModel(
 
     private var listener  : ListenerRegistration? = null
     private var webRTCRepo: WebRTCRepository?      = null
-    var webRTC: WebRTCRepository? = null
+
 
     // ── Écouter les appels d'un uid ───────────────────────────────────────
     fun listenCallsByUid(uid: String) {

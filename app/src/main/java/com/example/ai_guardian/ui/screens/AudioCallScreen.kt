@@ -41,11 +41,15 @@ fun AudioCallScreen(
     var isSpeaker      by remember { mutableStateOf(false) }
     val eglBase = remember { EglBase.create() }
 
-    val webRTC = remember { WebRTCRepository(context) }
-
-    LaunchedEffect(Unit) {
-        webRTC.init(eglBase)
-        callVM.webRTC = webRTC
+    LaunchedEffect(callId) {
+        callVM.startCall(
+            context = context,
+            callId = callId,
+            eglBase = eglBase,
+            onLocalVideo = {},
+            onRemoteVideo = {},
+            onOfferReady = {}
+        )
     }
 
     // ✅ Timer
@@ -138,7 +142,7 @@ fun AudioCallScreen(
                 ) {
                     isMuted = !isMuted
                     callVM.toggleMic(!isMuted)
-                    audioManager.isMicrophoneMute = isMuted
+
                 }
             }
 

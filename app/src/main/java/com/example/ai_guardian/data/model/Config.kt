@@ -7,5 +7,7 @@ data class Config(
     val localisation  : Boolean = true,
     val alertesActives: Boolean = true,
     val heureReveil   : String  = "07:00",
-    val heureSommeil  : String  = "22:00"
+    val heureSommeil  : String  = "22:00",
+    val inactivityThresholdMinutes: Int = 1,
+    val inactivityEnabled: Boolean = true
 )

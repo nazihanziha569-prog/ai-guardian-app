@@ -5,6 +5,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -13,6 +14,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
+import androidx.core.content.ContextCompat
 import androidx.navigation.compose.*
 import com.example.ai_guardian.audio.AlarmHolder
 import com.example.ai_guardian.audio.AlarmSoundManager
@@ -39,6 +41,7 @@ import com.example.ai_guardian.ui.screens.RoleSelectionScreen
 import com.example.ai_guardian.ui.screens.SplashScreen
 import com.example.ai_guardian.ui.screens.VideoCallScreen
 import com.example.ai_guardian.ui.screens.WelcomeScreen
+import com.example.ai_guardian.utils.BatteryOptimizationHelper
 import com.example.ai_guardian.viewmodel.AlertViewModel
 import com.example.ai_guardian.viewmodel.AuthViewModel
 import com.example.ai_guardian.viewmodel.CallViewModel
@@ -46,17 +49,23 @@ import com.example.ai_guardian.viewmodel.QRViewModel
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import livekit.org.webrtc.EglBase
-
-
-
+// ✅ Ajouter à la place
+import android.Manifest
 
 
 class MainActivity : ComponentActivity() {
+    private val notificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+            // permission accordée ou refusée — on continue dans les 2 cas
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         createNotificationChannel()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        requestNotificationPermissionIfNeeded()
+        BatteryOptimizationHelper.requestIgnoreBatteryOptimizations(this)
 
         AlarmHolder.soundManager = AlarmSoundManager(this)
 
@@ -389,6 +398,17 @@ class MainActivity : ComponentActivity() {
                         onReject      = {}
                     )
                 }
+            }
+        }
+    }
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted = ContextCompat.checkSelfPermission(
+                this, Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (!granted) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
         }
     }

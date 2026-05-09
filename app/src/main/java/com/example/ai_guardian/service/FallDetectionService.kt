@@ -46,6 +46,15 @@ class FallDetectionService : Service(), SensorEventListener {
     private val window = ArrayDeque<FloatArray>()
     private val lock = Any()
 
+
+    private var heureReveil = "07:00"
+    private var heureSommeil = "22:00"
+    private var inactivityThresholdMinutes = 10
+    private var inactivityEnabled = true
+
+
+
+
     // ─── Flags ───────────────────────────────────────────────────────────────
     @Volatile
     private var isHandlingFall = false
@@ -87,14 +96,14 @@ class FallDetectionService : Service(), SensorEventListener {
                 val now = System.currentTimeMillis()
 
                 // 30 minutes sans mouvement
-                if (
+                if (inactivityEnabled &&
+                    !isSleepingTime() &&
                     !inactivityAlertSent &&
-                    now - lastMovementTime > 30 * 60 * 1000L
-                ) {
+                    now - lastMovementTime > inactivityThresholdMinutes * 60 * 1000L) {
 
                     inactivityAlertSent = true
+                    handleInactivityDetected()
 
-                    sendInactivityAlert()
                 }
 
                 delay(60_000L)
@@ -113,7 +122,34 @@ class FallDetectionService : Service(), SensorEventListener {
             intent?.getStringExtra("surveillee_name")
                 ?: "Utilisateur"
 
+        val uid = FirebaseAuth.getInstance().currentUser?.uid
+
+        if (uid != null) {
+
+            FirebaseFirestore.getInstance()
+                .collection("SurveilleConfig")
+                .document(uid)
+                .addSnapshotListener { doc, _ ->
+
+                    if (doc != null && doc.exists()) {
+
+                        heureReveil =
+                            doc.getString("heureReveil") ?: "07:00"
+
+                        heureSommeil =
+                            doc.getString("heureSommeil") ?: "22:00"
+                        inactivityThresholdMinutes =
+                            doc.getLong("inactivityThresholdMinutes")?.toInt() ?: 10
+                        inactivityEnabled =
+                            doc.getBoolean("inactivityEnabled") ?: true
+
+                    }
+                }
+        }
+
         return START_STICKY
+
+
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -164,7 +200,8 @@ class FallDetectionService : Service(), SensorEventListener {
     // ════════════════════════════════════════════════════════════════════════
     private suspend fun handleFallDetected() {
 
-        val userResponded = askUserIfOk()
+        val userResponded =
+            askUserIfOk("⚠️ Chute détectée !")
 
         if (!userResponded) {
 
@@ -179,11 +216,29 @@ class FallDetectionService : Service(), SensorEventListener {
 
         isHandlingFall = false
     }
+    private suspend fun handleInactivityDetected() {
+
+        val userResponded =
+            askUserIfOk("⚠️ Inactivité prolongée !")
+
+        if (!userResponded) {
+
+            sendInactivityAlert()
+
+            delay(2000)
+
+            callSuperviseur()
+        }
+
+        inactivityAlertSent = true
+    }
 
     // ════════════════════════════════════════════════════════════════════════
     // Confirmation utilisateur
     // ════════════════════════════════════════════════════════════════════════
-    private suspend fun askUserIfOk(): Boolean {
+    private suspend fun askUserIfOk(
+        title: String
+    ): Boolean {
 
         repeat(3) { attempt ->
 
@@ -192,7 +247,10 @@ class FallDetectionService : Service(), SensorEventListener {
                         "Appuyez sur le bouton si vous allez bien."
             )
 
-            showConfirmationNotification(attempt + 1)
+            showConfirmationNotification(
+                attempt + 1,
+                title
+            )
 
             repeat(100) {
 
@@ -341,8 +399,10 @@ class FallDetectionService : Service(), SensorEventListener {
     // ════════════════════════════════════════════════════════════════════════
     // Notification confirmation
     // ════════════════════════════════════════════════════════════════════════
-    private fun showConfirmationNotification(attempt: Int) {
-
+    private fun showConfirmationNotification(
+        attempt: Int,
+        title: String
+    ){
         val okIntent =
             Intent(this, FallConfirmReceiver::class.java).apply {
                 action = ACTION_USER_OK
@@ -359,7 +419,7 @@ class FallDetectionService : Service(), SensorEventListener {
         val notif =
             NotificationCompat.Builder(this, "alarm_channel")
                 .setSmallIcon(android.R.drawable.ic_dialog_alert)
-                .setContentTitle("⚠️ Chute détectée ! ($attempt/3)")
+                .setContentTitle("$title ($attempt/3)")
                 .setContentText(
                     "Êtes-vous OK ? Appuyez si vous allez bien."
                 )
@@ -455,6 +515,42 @@ class FallDetectionService : Service(), SensorEventListener {
 
         // ───── final decision ─────
         return isHighConfidence && possibleFall
+    }
+
+    private fun isSleepingTime(): Boolean {
+
+        val calendar = Calendar.getInstance()
+
+        val currentHour =
+            calendar.get(Calendar.HOUR_OF_DAY)
+
+        val currentMinute =
+            calendar.get(Calendar.MINUTE)
+
+        val currentTime =
+            currentHour * 60 + currentMinute
+
+        val wake =
+            heureReveil.split(":")
+
+        val sleep =
+            heureSommeil.split(":")
+
+        val wakeMinutes =
+            wake[0].toInt() * 60 + wake[1].toInt()
+
+        val sleepMinutes =
+            sleep[0].toInt() * 60 + sleep[1].toInt()
+
+        return if (sleepMinutes > wakeMinutes) {
+
+            currentTime >= sleepMinutes ||
+                    currentTime < wakeMinutes
+
+        } else {
+
+            currentTime in sleepMinutes until wakeMinutes
+        }
     }
 
     companion object {

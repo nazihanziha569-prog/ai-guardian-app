@@ -320,10 +320,21 @@ private fun TabConfig(userId: String) {
         }
         Button(onClick = {
             db.collection("SurveilleConfig").document(userId).set(
-                hashMapOf("userId" to userId, "age" to config.age, "maladies" to config.maladies,
-                    "localisation" to config.localisation, "alertesActives" to config.alertesActives,
-                    "heureReveil" to config.heureReveil, "heureSommeil" to config.heureSommeil,
-                    "updatedAt" to System.currentTimeMillis())
+                hashMapOf(
+                    "userId" to userId,
+                    "age" to config.age,
+                    "maladies" to config.maladies,
+                    "localisation" to config.localisation,
+                    "alertesActives" to config.alertesActives,
+                    "heureReveil" to config.heureReveil,
+                    "heureSommeil" to config.heureSommeil,
+
+                    // ✅ NEW FIELDS
+                    "inactivityThresholdMinutes" to config.inactivityThresholdMinutes,
+                    "inactivityEnabled" to config.inactivityEnabled,
+
+                    "updatedAt" to System.currentTimeMillis()
+                )
             ).addOnSuccessListener { isSaved = true }
         }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(containerColor = DBlue)) {

@@ -63,6 +63,13 @@
             android:foregroundServiceType="health"
             android:stopWithTask="false" />
 
+        <service
+            android:name=".service.KeywordListenerService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="microphone"
+            android:stopWithTask="false" />
+
 
 
         <!-- Google Maps -->

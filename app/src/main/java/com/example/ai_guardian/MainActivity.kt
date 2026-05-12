@@ -51,6 +51,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import livekit.org.webrtc.EglBase
 // ✅ Ajouter à la place
 import android.Manifest
+import com.example.ai_guardian.viewmodel.ChatViewModel
 
 
 class MainActivity : ComponentActivity() {

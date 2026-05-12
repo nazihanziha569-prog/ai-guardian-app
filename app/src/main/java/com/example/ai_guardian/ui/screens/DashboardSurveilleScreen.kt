@@ -27,12 +27,17 @@ import androidx.navigation.NavController
 import com.example.ai_guardian.R
 import com.example.ai_guardian.data.model.Config
 import com.example.ai_guardian.service.AiService
+import com.example.ai_guardian.service.KeywordListenerService
 import com.example.ai_guardian.ui.components.CallTypeDialog
+import com.example.ai_guardian.ui.components.SosFloatingButton
+import com.example.ai_guardian.utils.AppEvents
 import com.example.ai_guardian.viewmodel.AlertViewModel
 import com.example.ai_guardian.viewmodel.CallViewModel
+import com.example.ai_guardian.viewmodel.ChatViewModel
 import com.google.android.gms.location.*
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
 import livekit.org.webrtc.EglBase
 
 private val SBlue   = Color(0xFF1976D2)
@@ -55,6 +60,13 @@ fun DashboardSurveilleScreen(
     val context  = LocalContext.current
     val activity = context as Activity
 
+    // ✅ ChatViewModel créé ici — vit aussi longtemps que le Dashboard
+    val chatViewModel = remember { ChatViewModel() }
+
+    // ✅ config + userName remontés au niveau Dashboard pour les passer au chatbot
+    var config   by remember { mutableStateOf<Config?>(null) }
+    var userName by remember { mutableStateOf("Utilisateur") }
+
     val fusedLocationClient = remember {
         LocationServices.getFusedLocationProviderClient(context)
     }
@@ -73,8 +85,7 @@ fun DashboardSurveilleScreen(
                     )
                 FirebaseFirestore.getInstance()
                     .collection("LocationHistory")
-                    .document(uid)
-                    .collection("points")
+                    .document(uid).collection("points")
                     .add(hashMapOf(
                         "lat"       to loc.latitude,
                         "lng"       to loc.longitude,
@@ -85,25 +96,36 @@ fun DashboardSurveilleScreen(
     }
 
     LaunchedEffect(Unit) {
+        KeywordListenerService.start(context)
+        launch {
+            AppEvents.events.collect { event ->
+                when (event) {
+                    is AppEvents.Event.OpenChatbot -> {
+                        selectedScreen = "chat"
+                    }
+                    is AppEvents.Event.OpenChatbotEmergency -> {
+                        selectedScreen = "chat"
+                        chatViewModel.sendWelcomeEmergency(event.detectedText)
+                    }
+                }
+            }
+        }
+
+
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return@LaunchedEffect
 
         FirebaseFirestore.getInstance()
-            .collection("Users")
-            .document(uid)
-            .get()
+            .collection("Users").document(uid).get()
             .addOnSuccessListener { userDoc ->
-                val userName = userDoc.getString("nom") ?: "Utilisateur"
+                userName = userDoc.getString("nom") ?: "Utilisateur"
 
                 FirebaseFirestore.getInstance()
-                    .collection("Users")
-                    .document(uid)
+                    .collection("Users").document(uid)
                     .update("isOnline", true)
 
-                // ✅ Passe le nom au service → AiManager → AlertService (TTS)
                 val aiServiceIntent = Intent(context, AiService::class.java).apply {
                     putExtra("surveillee_name", userName)
                 }
-
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                     context.startForegroundService(aiServiceIntent)
                 } else {
@@ -111,18 +133,30 @@ fun DashboardSurveilleScreen(
                 }
             }
 
+        // ✅ Config en temps réel
+        FirebaseFirestore.getInstance()
+            .collection("SurveilleConfig").document(uid)
+            .addSnapshotListener { snap, _ ->
+                if (snap != null && snap.exists()) {
+                    config = Config(
+                        userId         = uid,
+                        age            = (snap.getLong("age") ?: 0L).toInt(),
+                        maladies       = snap.getString("maladies") ?: "",
+                        localisation   = snap.getBoolean("localisation") ?: true,
+                        alertesActives = snap.getBoolean("alertesActives") ?: true,
+                        heureReveil    = snap.getString("heureReveil") ?: "07:00",
+                        heureSommeil   = snap.getString("heureSommeil") ?: "22:00"
+                    )
+                }
+            }
+
         ActivityCompat.requestPermissions(
             activity,
-            arrayOf(
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.CALL_PHONE
-            ),
+            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.CALL_PHONE),
             1
         )
-
         startLocationUpdates(fusedLocationClient, locationCallback)
 
-        // Écouter appels entrants
         FirebaseFirestore.getInstance()
             .collection("calls")
             .whereEqualTo("to", uid)
@@ -132,7 +166,6 @@ fun DashboardSurveilleScreen(
                     val from   = doc.getString("from") ?: ""
                     val callId = doc.id
                     val route  = navController.currentDestination?.route ?: ""
-
                     if (!route.startsWith("incoming_call") &&
                         !route.startsWith("active_call")   &&
                         !route.startsWith("outgoing_call") &&
@@ -142,9 +175,19 @@ fun DashboardSurveilleScreen(
                 }
             }
     }
+    // ── وقف/بدء KeywordService حسب الـ tab ───────────────────────────────
+    LaunchedEffect(selectedScreen) {
+        if (selectedScreen == "chat") {
+            KeywordListenerService.stop(context)   // ✅ الشات يسمع
+        } else {
+            KeywordListenerService.start(context)  // ✅ keyword يسمع
+        }
+    }
 
     DisposableEffect(Unit) {
         onDispose {
+            KeywordListenerService.stop(context)
+
             val uid = FirebaseAuth.getInstance().currentUser?.uid
             if (uid != null) {
                 FirebaseFirestore.getInstance().collection("Users").document(uid)
@@ -160,13 +203,11 @@ fun DashboardSurveilleScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Image(
-                            painterResource(id = R.drawable.logo),
-                            contentDescription = "Logo",
-                            modifier = Modifier.size(45.dp)
-                        )
+                        Image(painterResource(id = R.drawable.logo),
+                            contentDescription = "Logo", modifier = Modifier.size(45.dp))
                         Spacer(Modifier.width(10.dp))
-                        Text("AI Guardian", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = SBlue)
+                        Text("AI Guardian", fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold, color = SBlue)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White),
@@ -181,15 +222,37 @@ fun DashboardSurveilleScreen(
             )
         },
         bottomBar = {
-            BottomNavBar(selected = selectedScreen, onItemSelected = { selectedScreen = it })
+            SurveilleBottomNavBar(
+                selected       = selectedScreen,
+                onItemSelected = { selectedScreen = it }
+            )
         },
+        // ✅ SOS FAB — visible sur tous les tabs sauf le chatbot
+        floatingActionButton = {
+            if (selectedScreen != "chat") {
+                SosFloatingButton(onClick = { selectedScreen = "chat" })
+            }
+        },
+        floatingActionButtonPosition = FabPosition.End,
         containerColor = SBg
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when (selectedScreen) {
-                "home"     -> SurveilleHomeTab(alertViewModel, navController, callVM, eglBase)
-                "alerts"   -> AlertsScreen(isSupervisor = false)
-                "history"  -> HistoryScreen()
+                "home"    -> SurveilleHomeTab(alertViewModel, navController, callVM, eglBase,
+                    config = config, userName = userName)
+                "alerts"  -> AlertsScreen(isSupervisor = false)
+                "history" -> HistoryScreen()
+
+                // ✅ Tab chatbot
+                "chat"    -> ChatbotScreen(
+                    viewModel  = chatViewModel,
+                    config     = config,
+                    userName   = userName,
+                    onSosClick = {
+                        alertViewModel.sendAlert("danger", "Danger 🚨 via SOS chatbot", {}, {})
+                    }
+                )
+
                 "settings" -> SettingsScreen(
                     isDarkMode       = false,
                     onToggleDarkMode = {},
@@ -200,49 +263,30 @@ fun DashboardSurveilleScreen(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// SurveilleHomeTab — reçoit config + userName depuis le Dashboard
+// ════════════════════════════════════════════════════════════════════════════
 @Composable
 private fun SurveilleHomeTab(
     alertViewModel: AlertViewModel,
     navController : NavController,
     callVM        : CallViewModel,
-    eglBase       : EglBase
+    eglBase       : EglBase,
+    config        : Config?,
+    userName      : String
 ) {
     val context = LocalContext.current
-    var userName       by remember { mutableStateOf("") }
     var superviseurId  by remember { mutableStateOf("") }
     var showCallDialog by remember { mutableStateOf(false) }
-    var config         by remember { mutableStateOf<Config?>(null) }
 
     LaunchedEffect(Unit) {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return@LaunchedEffect
 
-        FirebaseFirestore.getInstance().collection("Users").document(uid).get()
-            .addOnSuccessListener { doc -> userName = doc.getString("nom") ?: "" }
-
         FirebaseFirestore.getInstance()
             .collection("Associations")
-            .whereEqualTo("superviseeId", uid)
-            .get()
+            .whereEqualTo("superviseeId", uid).get()
             .addOnSuccessListener { result ->
                 superviseurId = result.documents.firstOrNull()?.getString("superviseurId") ?: ""
-            }
-
-        FirebaseFirestore.getInstance()
-            .collection("SurveilleConfig")
-            .document(uid)
-            .addSnapshotListener { snap, _ ->
-                if (snap != null && snap.exists()) {
-                    config = Config(
-                        userId         = uid,
-                        age            = (snap.getLong("age") ?: 0L).toInt(),
-                        maladies       = snap.getString("maladies") ?: "",
-                        localisation   = snap.getBoolean("localisation") ?: true,
-                        alertesActives = snap.getBoolean("alertesActives") ?: true,
-                        heureReveil    = snap.getString("heureReveil") ?: "07:00",
-                        heureSommeil   = snap.getString("heureSommeil") ?: "22:00"
-                    )
-                }
             }
     }
 
@@ -277,9 +321,7 @@ private fun SurveilleHomeTab(
     }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
+        modifier            = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Spacer(Modifier.height(8.dp))
@@ -316,8 +358,7 @@ private fun SurveilleHomeTab(
             SmallActionCard("📞", "Appeler", SGreen, Modifier.weight(1f)) {
                 if (superviseurId.isEmpty())
                     Toast.makeText(context, "❌ Aucun superviseur trouvé", Toast.LENGTH_SHORT).show()
-                else
-                    showCallDialog = true
+                else showCallDialog = true
             }
         }
 
@@ -329,56 +370,42 @@ private fun SurveilleHomeTab(
             colors    = CardDefaults.cardColors(containerColor = Color.White),
             elevation = CardDefaults.cardElevation(3.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier              = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment     = Alignment.CenterVertically
                 ) {
-                    StatusItem(
-                        icon  = Icons.Default.LocationOn,
-                        label = "Localisation",
-                        value = if (config?.localisation != false) "Active" else "Désactivée",
-                        color = if (config?.localisation != false) SGreen else SGray
-                    )
+                    StatusItem(Icons.Default.LocationOn, "Localisation",
+                        if (config?.localisation != false) "Active" else "Désactivée",
+                        if (config?.localisation != false) SGreen else SGray)
                     VerticalDivider(modifier = Modifier.height(40.dp))
-                    StatusItem(
-                        icon  = Icons.Default.Sensors,
-                        label = "Capteur chute",
-                        value = "Actif",
-                        color = SGreen
-                    )
+                    StatusItem(Icons.Default.Sensors, "Capteur chute", "Actif", SGreen)
                     VerticalDivider(modifier = Modifier.height(40.dp))
-                    StatusItem(
-                        icon  = Icons.Default.Notifications,
-                        label = "Alertes",
-                        value = if (config?.alertesActives != false) "Activées" else "Désactivées",
-                        color = if (config?.alertesActives != false) SGreen else SGray
-                    )
+                    StatusItem(Icons.Default.Notifications, "Alertes",
+                        if (config?.alertesActives != false) "Activées" else "Désactivées",
+                        if (config?.alertesActives != false) SGreen else SGray)
                 }
 
                 if (config != null) {
                     HorizontalDivider(color = Color(0xFFEEEEEE))
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier              = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment     = Alignment.CenterVertically
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.WbSunny, contentDescription = null,
+                            Icon(Icons.Default.WbSunny, null,
                                 tint = Color(0xFFF9A825), modifier = Modifier.size(18.dp))
                             Spacer(Modifier.height(4.dp))
                             Text(config!!.heureReveil, fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold, color = Color(0xFFF9A825))
                             Text("Réveil", fontSize = 10.sp, color = Color.Gray)
                         }
-                        Icon(Icons.Default.ArrowForward, contentDescription = null,
+                        Icon(Icons.Default.ArrowForward, null,
                             tint = Color.LightGray, modifier = Modifier.size(16.dp))
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.Bedtime, contentDescription = null,
+                            Icon(Icons.Default.Bedtime, null,
                                 tint = Color(0xFF7B1FA2), modifier = Modifier.size(18.dp))
                             Spacer(Modifier.height(4.dp))
                             Text(config!!.heureSommeil, fontSize = 13.sp,
@@ -389,9 +416,9 @@ private fun SurveilleHomeTab(
                             VerticalDivider(modifier = Modifier.height(40.dp))
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.weight(1f)
+                                modifier            = Modifier.weight(1f)
                             ) {
-                                Icon(Icons.Default.LocalHospital, contentDescription = null,
+                                Icon(Icons.Default.LocalHospital, null,
                                     tint = SRed, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.height(4.dp))
                                 Text(config!!.maladies, fontSize = 10.sp,
@@ -402,15 +429,56 @@ private fun SurveilleHomeTab(
                 }
             }
         }
-
         Spacer(Modifier.height(8.dp))
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Composants UI
-// ─────────────────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// BottomNavBar — avec tab Assistant
+// ════════════════════════════════════════════════════════════════════════════
+@Composable
+fun SurveilleBottomNavBar(selected: String, onItemSelected: (String) -> Unit) {
+    NavigationBar(containerColor = Color.White) {
+        NavigationBarItem(
+            selected = selected == "home",
+            onClick  = { onItemSelected("home") },
+            icon     = { Icon(Icons.Default.Home, null) },
+            label    = { Text("Accueil") }
+        )
+        NavigationBarItem(
+            selected = selected == "alerts",
+            onClick  = { onItemSelected("alerts") },
+            icon     = { Icon(Icons.Default.Notifications, null) },
+            label    = { Text("Alertes") }
+        )
+        NavigationBarItem(
+            selected = selected == "history",
+            onClick  = { onItemSelected("history") },
+            icon     = { Icon(Icons.Default.History, null) },
+            label    = { Text("Historique") }
+        )
+        // ✅ Tab chatbot
+        NavigationBarItem(
+            selected = selected == "chat",
+            onClick  = { onItemSelected("chat") },
+            icon     = {
+                Icon(Icons.Default.Chat, null,
+                    tint = if (selected == "chat") SBlue else SGray)
+            },
+            label    = { Text("Assistant") }
+        )
+        NavigationBarItem(
+            selected = selected == "settings",
+            onClick  = { onItemSelected("settings") },
+            icon     = { Icon(Icons.Default.Settings, null) },
+            label    = { Text("Paramètres") }
+        )
+    }
+}
 
+// ════════════════════════════════════════════════════════════════════════════
+// UI Components
+// ════════════════════════════════════════════════════════════════════════════
 @Composable
 private fun SectionTitle(text: String) {
     Text(text, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1A1A2E))
@@ -423,15 +491,13 @@ private fun BigActionCard(
     modifier: Modifier = Modifier, onClick: () -> Unit
 ) {
     Card(
-        onClick = onClick, modifier = modifier, shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = bgColor),
+        onClick   = onClick, modifier = modifier, shape = RoundedCornerShape(18.dp),
+        colors    = CardDefaults.cardColors(containerColor = bgColor),
         elevation = CardDefaults.cardElevation(3.dp),
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, borderColor.copy(alpha = 0.4f))
+        border    = androidx.compose.foundation.BorderStroke(1.5.dp, borderColor.copy(alpha = 0.4f))
     ) {
-        Column(
-            modifier = Modifier.padding(18.dp).fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+        Column(modifier = Modifier.padding(18.dp).fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally) {
             Text(emoji, fontSize = 36.sp)
             Spacer(Modifier.height(8.dp))
             Text(label, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1A1A2E))
@@ -446,16 +512,14 @@ private fun SmallActionCard(
     modifier: Modifier = Modifier, onClick: () -> Unit
 ) {
     Card(
-        onClick = onClick, modifier = modifier, shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f)),
+        onClick   = onClick, modifier = modifier, shape = RoundedCornerShape(16.dp),
+        colors    = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f)),
         elevation = CardDefaults.cardElevation(2.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.3f))
+        border    = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.3f))
     ) {
-        Row(
-            modifier = Modifier.padding(14.dp).fillMaxWidth(),
+        Row(modifier = Modifier.padding(14.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
+            horizontalArrangement = Arrangement.Center) {
             Text(emoji, fontSize = 22.sp)
             Spacer(Modifier.width(8.dp))
             Text(label, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = color)
@@ -475,11 +539,8 @@ private fun StatusItem(icon: ImageVector, label: String, value: String, color: C
 
 @Composable
 fun ActionButton(emoji: String, color: Color, onClick: () -> Unit) {
-    FloatingActionButton(
-        onClick = onClick,
-        containerColor = color,
-        modifier = Modifier.size(85.dp)
-    ) {
+    FloatingActionButton(onClick = onClick, containerColor = color,
+        modifier = Modifier.size(85.dp)) {
         Text(text = emoji, fontSize = 26.sp)
     }
 }
@@ -490,10 +551,7 @@ fun startLocationUpdates(
     callback: LocationCallback
 ) {
     fusedLocationClient.requestLocationUpdates(
-        LocationRequest.Builder(
-            Priority.PRIORITY_HIGH_ACCURACY,
-            5 * 60 * 1000L
-        ).build(),
+        LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5 * 60 * 1000L).build(),
         callback,
         Looper.getMainLooper()
     )

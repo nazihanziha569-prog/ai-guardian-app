@@ -1,0 +1,96 @@
+import java.util.Properties
+
+val localProps = Properties()
+val localPropsFile = rootProject.file("local.properties")
+if (localPropsFile.exists()) localProps.load(localPropsFile.inputStream())
+
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.compose)
+    id("com.google.gms.google-services")
+}
+
+android {
+    namespace = "com.example.ai_guardian"
+    compileSdk = 36
+    defaultConfig {
+        applicationId = "com.example.ai_guardian"
+        minSdk = 24
+        targetSdk = 36
+        versionCode = 1
+        versionName = "1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "ANTHROPIC_KEY", "\"${localProps["ANTHROPIC_KEY"]}\"")
+        buildConfigField("String", "GEMINI_KEY", "\"${localProps["GEMINI_KEY"]}\"")
+        buildConfigField("String", "GROQ_KEY", "\"${localProps["GROQ_KEY"]}\"")
+    }
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+    aaptOptions {
+        noCompress("tflite")
+    }
+}
+
+dependencies {
+    implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
+    implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-messaging")
+    implementation("com.google.firebase:firebase-storage-ktx")
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.ui.graphics)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.ui.text)
+    implementation(libs.androidx.compose.foundation)
+    implementation(libs.androidx.compose.foundation.layout)
+    implementation("androidx.compose.material:material-icons-extended:1.7.0")
+    implementation("androidx.compose.material3:material3:1.3.1")
+    implementation("androidx.navigation:navigation-compose:2.7.7")
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+    implementation("com.google.zxing:core:3.5.1")
+    implementation("io.coil-kt:coil-compose:2.4.0")
+    implementation("com.google.maps.android:maps-compose:2.11.4")
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
+    implementation("com.google.android.gms:play-services-location:21.0.1")
+    implementation("org.tensorflow:tensorflow-lite-select-tf-ops:2.9.0")
+    implementation("io.livekit:livekit-android:2.24.1")
+    implementation("io.livekit:livekit-android-compose-components:2.2.1")
+    implementation("androidx.media3:media3-exoplayer:1.3.1")
+    implementation("androidx.media3:media3-ui:1.3.1")
+    implementation("com.patrykandpatrick.vico:compose:1.13.1")
+    implementation("com.patrykandpatrick.vico:core:1.13.1")
+    implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.material3)
+    implementation(libs.androidx.lifecycle.viewmodel.ktx)
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.litert)
+    testImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.tooling)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
+}

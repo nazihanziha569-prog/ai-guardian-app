@@ -4,6 +4,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -34,6 +36,7 @@ fun DashboardScreen(
 ) {
     var selectedScreen by remember { mutableStateOf("home") }
     var isDarkMode     by remember { mutableStateOf(false) }
+    var listeningActive by remember { mutableStateOf(false) }
 
     // ✅ Écouter appels entrants vers ce superviseur
     LaunchedEffect(Unit) {
@@ -71,6 +74,30 @@ fun DashboardScreen(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White),
                     actions = {
                         IconButton(onClick = {
+                            listeningActive = !listeningActive
+                            val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return@IconButton
+
+                            FirebaseFirestore.getInstance()
+                                .collection("Associations")
+                                .whereEqualTo("superviseurId", uid)
+                                .get()
+                                .addOnSuccessListener { result ->
+                                    val surveilleeId = result.documents
+                                        .firstOrNull()?.getString("superviseeId") ?: return@addOnSuccessListener
+                                    sendCommandViaFirestore(
+                                        surveilleeUid = surveilleeId,
+                                        type = if (listeningActive) "start_listening" else "stop_listening"
+                                    )
+                                }
+
+                        }) {
+                            Icon(
+                                imageVector = if (listeningActive) Icons.Default.Mic else Icons.Default.MicOff,
+                                contentDescription = "Toggle listening",
+                                tint = if (listeningActive) Color(0xFF43A047) else Color(0xFF9E9E9E)
+                            )
+                        }
+                        IconButton(onClick = {
                             val uid = FirebaseAuth.getInstance().currentUser?.uid
                             if (uid != null) FirebaseFirestore.getInstance().collection("Users").document(uid)
                                 .update(mapOf("isOnline" to false, "lastSeen" to System.currentTimeMillis()))
@@ -98,6 +125,17 @@ fun DashboardScreen(
             }
         }
     }
+}
+
+
+fun sendCommandViaFirestore(surveilleeUid: String, type: String) {
+    FirebaseFirestore.getInstance()
+        .collection("FCMCommands")
+        .add(hashMapOf(
+            "token_uid"  to surveilleeUid,
+            "type"       to type,
+            "timestamp"  to System.currentTimeMillis()
+        ))
 }
 
 @Composable

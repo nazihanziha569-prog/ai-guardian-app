@@ -3,6 +3,7 @@ package com.example.ai_guardian.ui.screens
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.os.Looper
 import android.widget.Toast
@@ -96,7 +97,38 @@ fun DashboardSurveilleScreen(
     }
 
     LaunchedEffect(Unit) {
+
         KeywordListenerService.start(context)
+        val prefs = context.getSharedPreferences("ai_guardian_prefs", Context.MODE_PRIVATE)
+        val shown = prefs.getBoolean("autostart_shown", false)
+        if (!shown && isMiui()) {
+            prefs.edit().putBoolean("autostart_shown", true).apply()
+            try {
+                val intent = Intent().apply {
+                    component = android.content.ComponentName(
+                        "com.miui.securitycenter",
+                        "com.miui.permcenter.autostart.AutoStartManagementActivity"
+                    )
+                }
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                android.util.Log.w("Dashboard", "MIUI autostart page not found")
+            }
+        }
+        // ✅ طلب إزالة battery optimization
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+        if (!powerManager.isIgnoringBatteryOptimizations(context.packageName)) {
+            try {
+                val intent = Intent(
+                    android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+                ).apply {
+                    data = android.net.Uri.parse("package:${context.packageName}")
+                }
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                android.util.Log.w("Dashboard", "Battery optimization request failed")
+            }
+        }
         launch {
             AppEvents.events.collect { event ->
                 when (event) {
@@ -113,6 +145,19 @@ fun DashboardSurveilleScreen(
 
 
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return@LaunchedEffect
+        // ✅ Écouter commandes du superviseur
+        FirebaseFirestore.getInstance()
+            .collection("FCMCommands")
+            .whereEqualTo("token_uid", uid)
+            .addSnapshotListener { snapshot, _ ->
+                snapshot?.documents?.forEach { doc ->
+                    when (doc.getString("type")) {
+                        "start_listening" -> KeywordListenerService.start(context)
+                        "stop_listening"  -> KeywordListenerService.stop(context)
+                    }
+                    doc.reference.delete()
+                }
+            }
 
         FirebaseFirestore.getInstance()
             .collection("Users").document(uid).get()
@@ -542,6 +587,16 @@ fun ActionButton(emoji: String, color: Color, onClick: () -> Unit) {
     FloatingActionButton(onClick = onClick, containerColor = color,
         modifier = Modifier.size(85.dp)) {
         Text(text = emoji, fontSize = 26.sp)
+    }
+}
+fun isMiui(): Boolean {
+    return try {
+        val clazz = Class.forName("android.os.SystemProperties")
+        val method = clazz.getMethod("get", String::class.java)
+        val value  = method.invoke(null, "ro.miui.ui.version.name") as String
+        value.isNotEmpty()
+    } catch (e: Exception) {
+        false
     }
 }
 

@@ -60,7 +60,7 @@ class KeywordClassifier(context: Context) {
             else -> Intent.NORMAL
         }
 
-        return if (conf >= 0.65f) Result(intent, conf)
+        return if (conf >= 0.40f) Result(intent, conf)
         else Result(Intent.NORMAL, conf)
     }
 

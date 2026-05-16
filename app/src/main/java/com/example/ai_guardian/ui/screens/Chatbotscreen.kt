@@ -1,6 +1,8 @@
 package com.example.ai_guardian.ui.screens
 
+import android.R.attr.data
 import android.content.pm.PackageManager
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -27,7 +29,12 @@ import androidx.core.content.ContextCompat
 import com.example.ai_guardian.audio.SpeechRecognitionManager
 import com.example.ai_guardian.data.model.ChatMessage
 import com.example.ai_guardian.data.model.Config
+import com.example.ai_guardian.utils.KeywordClassifier
 import com.example.ai_guardian.viewmodel.ChatViewModel
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.delay
+
 
 private val CBlue   = Color(0xFF1976D2)
 private val CBlueL  = Color(0xFFE3F2FD)
@@ -59,8 +66,36 @@ fun ChatbotScreen(
 
     // ✅ Init TTS avec le Context
     LaunchedEffect(Unit) {
+        viewModel.onCallSuperviseur = {
+            val uid = FirebaseAuth.getInstance().currentUser?.uid
+            if (uid != null) {
+                FirebaseFirestore.getInstance()
+                    .collection("Associations")
+                    .whereEqualTo("superviseeId", uid)
+                    .get()
+                    .addOnSuccessListener { result ->
+                        val superviseurId = result.documents
+                            .firstOrNull()?.getString("superviseurId") ?: return@addOnSuccessListener
+                        FirebaseFirestore.getInstance()
+                            .collection("Users")
+                            .document(superviseurId)
+                            .get()
+                            .addOnSuccessListener { doc ->
+                                val phone = doc.getString("phone") ?: return@addOnSuccessListener
+                                val intent = android.content.Intent(android.content.Intent.ACTION_CALL).apply {
+                                    data  = Uri.parse("tel:$phone")
+                                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                                }
+                                context.startActivity(intent)
+                            }
+                    }
+            }
+        }
         viewModel.initTts(context)
+        viewModel.initSpeech(context)
         viewModel.sendWelcome(userName)
+        delay(2000)
+        viewModel.startListening()
     }
 
     // Scroll automatique

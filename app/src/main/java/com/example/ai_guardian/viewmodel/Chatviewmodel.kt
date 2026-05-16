@@ -46,6 +46,7 @@ class ChatViewModel(
     // ── Config courante (pour sendMessageAndThenListen) ───────────────────
     private var currentConfig  : Config? = null
     private var currentUserName: String  = "Utilisateur"
+    var onCallSuperviseur: (() -> Unit)? = null
 
     init {
         repository.listenRappels { _rappels.value = it }
@@ -69,14 +70,13 @@ class ChatViewModel(
         speechManager = SpeechRecognitionManager(
             context      = context,
             onResult     = { text -> sendMessageAndThenListen(text) },
-            onError      = { msg  ->
-                addBotMessage("⚠️ $msg")
-                if (_voiceMode.value) {
+            onError      = { _  ->
+
                     viewModelScope.launch {
-                        delay(1500)
+                        delay(1000)
                         startListening()
                     }
-                }
+
             },
             onStateChange = { state -> _speechState.value = state }
         )
@@ -87,7 +87,7 @@ class ChatViewModel(
     // ════════════════════════════════════════════════════════════════════════
     fun startListening() {
         viewModelScope.launch {
-            delay(800)  // ✅ انتظر حتى KeywordService يوقف
+            delay(300)  // ✅ انتظر حتى KeywordService يوقف
             speechManager?.startListening()
         }
     }
@@ -143,9 +143,18 @@ class ChatViewModel(
         if (_isLoading.value) return
         if (addToHistory) addUserMessage(text)
 
+        // ✅ كشف نية الاتصال من النص المكتوب
+        val callTriggers = listOf(
+            "عيط للمشرف", "اتصل بالمشرف", "عيط", "كلم المشرف",
+            "appelle", "appeler", "call"
+        )
+        if (callTriggers.any { text.lowercase().contains(it) }) {
+            onCallSuperviseur?.invoke()
+            return
+        }
+
         viewModelScope.launch {
             _isLoading.value = true
-
             val result = repository.sendMessage(
                 userMessage = text,
                 userName    = currentUserName,
@@ -153,14 +162,11 @@ class ChatViewModel(
                 rappels     = _rappels.value,
                 history     = _messages.value
             )
-
             result
                 .onSuccess { reply ->
                     addBotMessage(reply)
                     ttsManager?.speak(reply)
-
                     if (_voiceMode.value) {
-                        // Estimer durée TTS : ~80ms par caractère
                         val estimatedMs = (reply.length * 80L).coerceIn(2000L, 15000L)
                         delay(estimatedMs)
                         if (_voiceMode.value) startListening()
@@ -170,15 +176,12 @@ class ChatViewModel(
                     val err = "عذراً، فما مشكلة في الاتصال. حاول مرة أخرى."
                     addBotMessage(err)
                     ttsManager?.speak(err)
-                    if (_voiceMode.value) {
-                        delay(3000)
-                        startListening()
-                    }
+                    if (_voiceMode.value) { delay(3000); startListening() }
                 }
-
             _isLoading.value = false
         }
     }
+
 
     fun sendWelcomeEmergency(detectedText: String = "") {
         val msg = if (detectedText.isNotBlank())

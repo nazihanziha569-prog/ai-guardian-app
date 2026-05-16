@@ -3,56 +3,51 @@ package com.example.ai_guardian.service
 import android.app.*
 import android.content.Context
 import android.content.Intent
-import android.os.Bundle
-import android.os.IBinder
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
+import android.os.*
+import android.speech.*
 import androidx.core.app.NotificationCompat
 import com.example.ai_guardian.MainActivity
 import com.example.ai_guardian.utils.AppEvents
-
 import com.example.ai_guardian.utils.KeywordClassifier
-import com.example.ai_guardian.viewmodel.ChatViewModel
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.*
 
 class KeywordListenerService : Service() {
 
-    private var recognizer  : SpeechRecognizer? = null
+    private var recognizer    : SpeechRecognizer? = null
     private lateinit var classifier: KeywordClassifier
-    private val scope       = CoroutineScope(Dispatchers.Main)
-    private var isListening = false
+    private val scope         = CoroutineScope(Dispatchers.Main)
+    private var isRunning     = false
+    private var isListening   = false
     private var lastAlertTime = 0L
-    private var isRunning   = false
 
     override fun onCreate() {
         super.onCreate()
-        isRunning  = true   // ✅
+        isRunning  = true
         classifier = KeywordClassifier(this)
         startForeground(NOTIF_ID, buildNotification())
-        startKeywordListening()
+        startListening()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (!isListening) startListening()
+        return START_STICKY
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // Boucle d'écoute
+    // SpeechRecognizer loop
     // ════════════════════════════════════════════════════════════════════════
-    private fun startKeywordListening() {
+    private fun startListening() {
+        if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
+            != android.content.pm.PackageManager.PERMISSION_GRANTED) return
+
         createRecognizer()
         listenOnce()
     }
 
     private fun listenOnce() {
-        if (isListening) return
-
-        // ✅ تحقق إذا Google Speech متاح
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            android.util.Log.e("KeywordService", "Speech recognition not available!")
-            restartAfterDelay(10_000)
-            return
-        }
-
+        if (isListening || !isRunning) return
         isListening = true
 
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -61,88 +56,77 @@ class KeywordListenerService : Service() {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-TN")
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "ar-TN")
             putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, false)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 3000L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 3000L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 500L)
-            // ✅ هذا مهم جداً للـ background
-            putExtra("android.speech.extra.DICTATION_MODE", true)
+            putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", arrayOf("ar", "fr-FR"))
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L)
         }
 
-        try {
-            recognizer?.startListening(intent)
-        } catch (e: Exception) {
-            android.util.Log.e("KeywordService", "startListening failed: ${e.message}")
+        try { recognizer?.startListening(intent) }
+        catch (e: Exception) {
             isListening = false
-            restartAfterDelay(2000)
+            restartAfterDelay(1000)
         }
     }
 
     private fun createRecognizer() {
-        try {
-            recognizer?.destroy()
-            recognizer = null
-        } catch (e: Exception) { }
+        try { recognizer?.destroy(); recognizer = null } catch (e: Exception) {}
 
-        // ✅ delay على الـ main thread بدون Thread.sleep
         recognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
             setRecognitionListener(object : RecognitionListener {
-
-                override fun onReadyForSpeech(p0: Bundle?) {
-                    android.util.Log.d("KeywordService", "✅ Ready to listen")
-                }
 
                 override fun onResults(bundle: Bundle?) {
                     isListening = false
                     val matches = bundle
                         ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        ?: return restartAfterDelay(1000)
+                        ?: return restartAfterDelay(500)
 
-                    android.util.Log.d("KeywordService", "Heard: $matches")
+                    android.util.Log.d("KeywordService", "📝 Heard: $matches")
 
                     for (text in matches) {
+
+                        // ✅ 1 — Keyword matching مباشر (أسرع)
+                        val textLower = text.lowercase()
+                        val emergencyWords = listOf("عاوني", "ساعدني", "نجدة", "طحت", "مريض", "خطر", "نجدني")
+                        val distressWords  = listOf("نحس بدوخة", "تعبت", "مش بخير", "دوخة", "نبكي", "خايف")
+
+                        if (emergencyWords.any { textLower.contains(it) }) {
+                            handleDetection(text, isEmergency = true)
+                            return
+                        }
+                        if (distressWords.any { textLower.contains(it) }) {
+                            handleDetection(text, isEmergency = false)
+                            return
+                        }
+
+                        // ✅ 2 — ML model (أدق للجمل الطويلة)
                         val result = classifier.classify(text)
                         android.util.Log.d("KeywordService",
-                            "→ ${result.intent} (${"%.0f".format(result.confidence * 100)}%) : $text")
+                            "🧠 ${result.intent} (${"%.0f".format(result.confidence*100)}%) → $text")
+
                         when (result.intent) {
-                            KeywordClassifier.Intent.EMERGENCY -> {
-                                handleEmergency(text, result.confidence)
-                                return
-                            }
-                            KeywordClassifier.Intent.DISTRESS -> {
-                                handleDistress(text, result.confidence)
-                                return
-                            }
-                            KeywordClassifier.Intent.NORMAL -> {}
+                            KeywordClassifier.Intent.EMERGENCY -> { handleDetection(text, true);  return }
+                            KeywordClassifier.Intent.DISTRESS  -> { handleDetection(text, false); return }
+                            KeywordClassifier.Intent.NORMAL    -> {}
                         }
                     }
-                    restartAfterDelay(500)
+                    restartAfterDelay(300)
                 }
 
                 override fun onError(errorCode: Int) {
                     isListening = false
                     android.util.Log.d("KeywordService", "onError: $errorCode")
-                    when (errorCode) {
-                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> {
-                            // ✅ destroy complètement et recréer
-                            try { recognizer?.destroy(); recognizer = null } catch (e: Exception) {}
-                            restartAfterDelay(3000)
+                    restartAfterDelay(
+                        when (errorCode) {
+                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> 2000L
+                            SpeechRecognizer.ERROR_NETWORK         -> 5000L
+                            else                                   -> 500L
                         }
-                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> {
-                            android.util.Log.e("KeywordService", "❌ Permission RECORD_AUDIO manquante!")
-                            // لا تعيد المحاولة
-                        }
-                        else -> restartAfterDelay(
-                            when (errorCode) {
-                                SpeechRecognizer.ERROR_NETWORK         -> 5000L
-                                SpeechRecognizer.ERROR_NO_MATCH        -> 300L
-                                SpeechRecognizer.ERROR_SPEECH_TIMEOUT  -> 300L
-                                else                                   -> 1000L
-                            }
-                        )
-                    }
+                    )
                 }
 
+                override fun onReadyForSpeech(p0: Bundle?) {
+                    android.util.Log.d("KeywordService", "✅ Ready")
+                }
                 override fun onBeginningOfSpeech()          {}
                 override fun onRmsChanged(v: Float)         {}
                 override fun onBufferReceived(b: ByteArray?){}
@@ -153,8 +137,8 @@ class KeywordListenerService : Service() {
         }
     }
 
-    private fun restartAfterDelay(delayMs: Long = 800L) {
-        if (!isRunning) return  // ✅ لا تعيد إذا الـ service وقف
+    private fun restartAfterDelay(delayMs: Long = 500L) {
+        if (!isRunning) return
         scope.launch {
             delay(delayMs)
             if (isRunning) {
@@ -164,119 +148,67 @@ class KeywordListenerService : Service() {
         }
     }
 
-
-
     // ════════════════════════════════════════════════════════════════════════
-    // Urgence → Firebase + ouvrir chatbot
+    // Detection
     // ════════════════════════════════════════════════════════════════════════
-    private fun handleEmergency(text: String, confidence: Float) {
+    private fun handleDetection(text: String, isEmergency: Boolean) {
         val now = System.currentTimeMillis()
-        if (now - lastAlertTime < 30_000) return restartAfterDelay()
+        if (now - lastAlertTime < 15_000) return
         lastAlertTime = now
 
-        // ✅ وقف الاستماع قبل ما يفتح الشات
-        recognizer?.stopListening()
-        isListening = false
+        android.util.Log.d("KeywordService",
+            if (isEmergency) "🚨 EMERGENCY: $text" else "⚠️ DISTRESS: $text")
 
         openApp()
         AppEvents.emit(AppEvents.Event.OpenChatbotEmergency(text))
-        sendFirebaseAlert(text, "danger")
-
-        // ✅ رجع يسمع بعد 30 ثانية
-        scope.launch {
-            delay(30_000)
-            createRecognizer()
-            listenOnce()
-        }
+        if (isEmergency) sendFirebaseAlert(text)
     }
 
-    private fun handleDistress(text: String, confidence: Float) {
-        val now = System.currentTimeMillis()
-        if (now - lastAlertTime < 30_000) return restartAfterDelay()
-        lastAlertTime = now
-
-        // ✅ نفس الشيء
-        recognizer?.stopListening()
-        isListening = false
-
-        openApp()
-        AppEvents.emit(AppEvents.Event.OpenChatbotEmergency(text))
-
-        scope.launch {
-            delay(30_000)
-            createRecognizer()
-            listenOnce()
-        }
-    }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // Ouvrir MainActivity
-    // ════════════════════════════════════════════════════════════════════════
     private fun openApp() {
-        startActivity(
-            Intent(this, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                        Intent.FLAG_ACTIVITY_SINGLE_TOP
-            }
-        )
+        startActivity(Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        })
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // Firebase Alert
-    // ════════════════════════════════════════════════════════════════════════
-    private fun sendFirebaseAlert(text: String, type: String) {
+    private fun sendFirebaseAlert(text: String) {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
-
         FirebaseFirestore.getInstance()
             .collection("Associations")
-            .whereEqualTo("superviseeId", uid)
-            .get()
+            .whereEqualTo("superviseeId", uid).get()
             .addOnSuccessListener { result ->
                 val superviseurId = result.documents
                     .firstOrNull()?.getString("superviseurId") ?: ""
-
-                FirebaseFirestore.getInstance()
-                    .collection("Alerts")
-                    .add(hashMapOf(
-                        "superviseeId"  to uid,
-                        "superviseurId" to superviseurId,
-                        "type"          to type,
-                        "message"       to "🎤 Mot-clé vocal détecté : \"$text\"",
-                        "timestamp"     to System.currentTimeMillis(),
-                        "status"        to "unconfirmed"
-                    ))
+                FirebaseFirestore.getInstance().collection("Alerts").add(hashMapOf(
+                    "superviseeId"  to uid,
+                    "superviseurId" to superviseurId,
+                    "type"          to "danger",
+                    "message"       to "🎤 Mot-clé vocal : \"$text\"",
+                    "timestamp"     to System.currentTimeMillis(),
+                    "status"        to "unconfirmed"
+                ))
             }
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // Notification foreground
-    // ════════════════════════════════════════════════════════════════════════
     private fun buildNotification(): Notification {
         val channelId = "keyword_listener"
-
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            NotificationChannel(
-                channelId,
-                "Écoute mots-clés",
-                NotificationManager.IMPORTANCE_MIN
-            ).also {
+            NotificationChannel(channelId, "Écoute mots-clés",
+                NotificationManager.IMPORTANCE_MIN).also {
                 getSystemService(NotificationManager::class.java)
                     .createNotificationChannel(it)
             }
         }
-
         return NotificationCompat.Builder(this, channelId)
             .setContentTitle("AI Guardian")
             .setContentText("🎤 Écoute active...")
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setPriority(NotificationCompat.PRIORITY_MIN)
-            .setSilent(true)
-            .build()
+            .setSilent(true).build()
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        isRunning = false   // ✅
+        isRunning = false
         recognizer?.destroy()
         scope.cancel()
     }
@@ -285,15 +217,12 @@ class KeywordListenerService : Service() {
 
     companion object {
         const val NOTIF_ID = 55
-
         fun start(context: Context) {
             val intent = Intent(context, KeywordListenerService::class.java)
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O)
                 context.startForegroundService(intent)
-            else
-                context.startService(intent)
+            else context.startService(intent)
         }
-
         fun stop(context: Context) {
             context.stopService(Intent(context, KeywordListenerService::class.java))
         }

@@ -16,10 +16,19 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         createNotificationChannel()
     }
 
+    // ✅ الصواب
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
 
-        remoteMessage.notification?.let {
-            showNotification(it.title, it.body)
+        // ✅ من data payload
+        val title = remoteMessage.data["title"]
+            ?: remoteMessage.notification?.title
+            ?: "AI Guardian"
+        val body = remoteMessage.data["body"]
+            ?: remoteMessage.notification?.body
+            ?: ""
+
+        if (title.isNotBlank() || body.isNotBlank()) {
+            showNotification(title, body)
         }
     }
 

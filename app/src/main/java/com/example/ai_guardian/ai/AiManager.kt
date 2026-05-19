@@ -9,7 +9,7 @@ import kotlin.math.sqrt
 
 class AiManager(
     private val context: Context,
-    private val surveilleeName: String = "Utilisateur"
+    private var surveilleeName: String = "Utilisateur"
 ) {
 
     private val fallEngine       = FallEngine(context.assets)
@@ -19,6 +19,7 @@ class AiManager(
 
     private var lastFallAlert     = 0L
     private var lastInactiveAlert = 0L
+
 
     init {
         listenToConfig()
@@ -84,14 +85,18 @@ class AiManager(
 
             "INACTIVE" -> {
                 val now = System.currentTimeMillis()
-                if (now - lastInactiveAlert > 60_000) {
+                val cooldown = inactivityEngine.thresholdMinutes * 60_000L
+                if (now - lastInactiveAlert > cooldown) {
                     lastInactiveAlert = now
-                    android.util.Log.d("AI_DEBUG", "⚠️ INACTIVITY ALERT TRIGGERED")
                     launchAlertService("inactivity")
                 }
             }
         }
+
+    }fun updateName(name: String) {
+        surveilleeName = name
     }
+
 
     private fun launchAlertService(type: String) {
         val intent = Intent(context, AlertService::class.java).apply {

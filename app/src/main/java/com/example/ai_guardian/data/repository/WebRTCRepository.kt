@@ -21,6 +21,7 @@ import livekit.org.webrtc.SdpObserver
 import livekit.org.webrtc.SessionDescription
 import livekit.org.webrtc.SurfaceTextureHelper
 import livekit.org.webrtc.VideoTrack
+import kotlin.invoke
 
 class WebRTCRepository(private val context: Context) {
 
@@ -51,6 +52,10 @@ class WebRTCRepository(private val context: Context) {
             isInitialized = true
         }
 
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        audioManager.mode = android.media.AudioManager.MODE_IN_COMMUNICATION
+        audioManager.isSpeakerphoneOn = false
+
         val encoderFactory = DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true)
         val decoderFactory = DefaultVideoDecoderFactory(eglBase.eglBaseContext)
 
@@ -63,8 +68,16 @@ class WebRTCRepository(private val context: Context) {
     // ───────────────────────── LOCAL STREAM ─────────────────────────
     fun createLocalStream(eglBase: EglBase): VideoTrack? {
 
-        val audioSource = peerConnectionFactory.createAudioSource(MediaConstraints())
+        val audioConstraints = MediaConstraints().apply {
+            mandatory.add(MediaConstraints.KeyValuePair("googEchoCancellation", "true"))
+            mandatory.add(MediaConstraints.KeyValuePair("googNoiseSuppression", "true"))
+            mandatory.add(MediaConstraints.KeyValuePair("googAutoGainControl", "true"))
+        }
+
+        val audioSource = peerConnectionFactory.createAudioSource(audioConstraints)
         localAudioTrack = peerConnectionFactory.createAudioTrack("audio0", audioSource)
+        localAudioTrack?.setEnabled(true) // ✅ تأكد يكون enabled
+
 
         videoCapturer = createCameraCapturer()
         if (videoCapturer == null) return null
@@ -76,6 +89,7 @@ class WebRTCRepository(private val context: Context) {
         videoCapturer?.startCapture(1280, 720, 30)
 
         localVideoTrack = peerConnectionFactory.createVideoTrack("video0", videoSource)
+        localVideoTrack?.setEnabled(true)
 
         onLocalStream?.invoke(localVideoTrack)
 
@@ -86,11 +100,32 @@ class WebRTCRepository(private val context: Context) {
     fun createPeerConnection(callId: String, isOffer: Boolean) {
 
         val iceServers = listOf(
-            PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
+            PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer(),
+            PeerConnection.IceServer.builder("stun:stun1.l.google.com:19302").createIceServer(),
+            PeerConnection.IceServer.builder("stun:stun.relay.metered.ca:80").createIceServer(),
+            PeerConnection.IceServer.builder("turn:global.relay.metered.ca:80")
+                .setUsername("83eebabf8b4cce9d5dbcb649")
+                .setPassword("2D7JvfkOQtBdYW3R")
+                .createIceServer(),
+            PeerConnection.IceServer.builder("turn:global.relay.metered.ca:80?transport=tcp")
+                .setUsername("83eebabf8b4cce9d5dbcb649")
+                .setPassword("2D7JvfkOQtBdYW3R")
+                .createIceServer(),
+            PeerConnection.IceServer.builder("turn:global.relay.metered.ca:443")
+                .setUsername("83eebabf8b4cce9d5dbcb649")
+                .setPassword("2D7JvfkOQtBdYW3R")
+                .createIceServer(),
+            PeerConnection.IceServer.builder("turns:global.relay.metered.ca:443?transport=tcp")
+                .setUsername("83eebabf8b4cce9d5dbcb649")
+                .setPassword("2D7JvfkOQtBdYW3R")
+                .createIceServer()
         )
 
         val config = PeerConnection.RTCConfiguration(iceServers).apply {
-            sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
+            sdpSemantics      = PeerConnection.SdpSemantics.UNIFIED_PLAN
+            iceTransportsType = PeerConnection.IceTransportsType.ALL
+            bundlePolicy      = PeerConnection.BundlePolicy.MAXBUNDLE
+            rtcpMuxPolicy     = PeerConnection.RtcpMuxPolicy.REQUIRE
         }
 
         peerConnection = peerConnectionFactory.createPeerConnection(
@@ -98,39 +133,40 @@ class WebRTCRepository(private val context: Context) {
             object : PeerConnection.Observer {
 
                 override fun onIceCandidate(candidate: IceCandidate) {
-
                     val sub = if (isOffer) "callerCandidates" else "calleeCandidates"
-
-                    db.collection("calls")
-                        .document(callId)
-                        .collection(sub)
-                        .add(
-                            mapOf(
-                                "candidate" to candidate.sdp,
-                                "sdpMid" to candidate.sdpMid,
-                                "sdpMLineIndex" to candidate.sdpMLineIndex
-                            )
-                        )
+                    db.collection("calls").document(callId).collection(sub)
+                        .add(mapOf(
+                            "candidate"     to candidate.sdp,
+                            "sdpMid"        to candidate.sdpMid,
+                            "sdpMLineIndex" to candidate.sdpMLineIndex
+                        ))
                 }
 
                 override fun onTrack(transceiver: RtpTransceiver?) {
                     val track = transceiver?.receiver?.track()
-                    if (track is VideoTrack) {
-                        onRemoteStream?.invoke(track)
+                    when (track) {
+                        is VideoTrack -> { track.setEnabled(true); onRemoteStream?.invoke(track) }
+                        is AudioTrack -> { track.setEnabled(true) }
                     }
                 }
 
-                override fun onSignalingChange(p0: PeerConnection.SignalingState?) {}
-                override fun onIceConnectionChange(p0: PeerConnection.IceConnectionState?) {}
-                override fun onIceConnectionReceivingChange(p0: Boolean) {}
+                override fun onIceConnectionChange(state: PeerConnection.IceConnectionState?) {
+                    android.util.Log.d("ICE", "ICE: $state")
+                }
+
+                override fun onConnectionChange(state: PeerConnection.PeerConnectionState?) {
+                    android.util.Log.d("ICE", "PC: $state")
+                }
+
+                override fun onSignalingChange(p0: PeerConnection.SignalingState?)       {}
+                override fun onIceConnectionReceivingChange(p0: Boolean)                 {}
                 override fun onIceGatheringChange(p0: PeerConnection.IceGatheringState?) {}
-                override fun onIceCandidatesRemoved(p0: Array<out IceCandidate>?) {}
-                override fun onAddStream(p0: MediaStream?) {}
-                override fun onRemoveStream(p0: MediaStream?) {}
-                override fun onDataChannel(p0: DataChannel?) {}
-                override fun onRenegotiationNeeded() {}
-                override fun onAddTrack(p0: RtpReceiver?, p1: Array<out MediaStream>?) {}
-                override fun onConnectionChange(p0: PeerConnection.PeerConnectionState?) {}
+                override fun onIceCandidatesRemoved(p0: Array<out IceCandidate>?)        {}
+                override fun onAddStream(p0: MediaStream?)                               {}
+                override fun onRemoveStream(p0: MediaStream?)                            {}
+                override fun onDataChannel(p0: DataChannel?)                             {}
+                override fun onRenegotiationNeeded()                                     {}
+                override fun onAddTrack(p0: RtpReceiver?, p1: Array<out MediaStream>?)   {}
             }
         )
 
@@ -147,7 +183,7 @@ class WebRTCRepository(private val context: Context) {
                     override fun onSetSuccess() {
                         db.collection("calls")
                             .document(callId)
-                            .update("offer", sdp.description)
+                            .set(mapOf("offer" to sdp.description), com.google.firebase.firestore.SetOptions.merge())
                             .addOnSuccessListener { onDone() }
                     }
 
@@ -174,6 +210,11 @@ class WebRTCRepository(private val context: Context) {
 
         peerConnection?.close()
         peerConnection = null
+
+
+       val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        audioManager.mode = android.media.AudioManager.MODE_NORMAL
+        audioManager.isSpeakerphoneOn = false
     }
 
     private fun createCameraCapturer(): CameraVideoCapturer? {
@@ -201,7 +242,7 @@ class WebRTCRepository(private val context: Context) {
 
                                 db.collection("calls")
                                     .document(callId)
-                                    .update("answer", sdp.description)
+                                    .set(mapOf("answer" to sdp.description), com.google.firebase.firestore.SetOptions.merge())
                                     .addOnSuccessListener { onDone() }
                             }
 
@@ -251,4 +292,8 @@ class WebRTCRepository(private val context: Context) {
     fun toggleCamera(enabled: Boolean) {
         localVideoTrack?.setEnabled(enabled)
     }
+    fun reEmitTracks() {
+        localVideoTrack?.let  { onLocalStream?.invoke(it)  }
+    }
+
 }

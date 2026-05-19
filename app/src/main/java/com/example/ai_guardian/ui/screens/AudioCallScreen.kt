@@ -1,7 +1,10 @@
 package com.example.ai_guardian.ui.screens
 
+import android.Manifest
 import android.content.Context
 import android.media.AudioManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -30,7 +33,8 @@ fun AudioCallScreen(
     navController   : NavController,
     callId          : String,
     participantName : String,
-    callVM          : CallViewModel = remember { CallViewModel() }
+    callVM          : CallViewModel = remember { CallViewModel() },
+    eglBase         : EglBase
 ) {
     val context      = LocalContext.current
     val db           = FirebaseFirestore.getInstance()
@@ -39,27 +43,54 @@ fun AudioCallScreen(
     var elapsedSeconds by remember { mutableStateOf(0) }
     var isMuted        by remember { mutableStateOf(false) }
     var isSpeaker      by remember { mutableStateOf(false) }
-    val eglBase = remember { EglBase.create() }
+    var permGranted    by remember { mutableStateOf(false) }
 
-    LaunchedEffect(callId) {
-        callVM.startCall(
-            context = context,
-            callId = callId,
-            eglBase = eglBase,
-            onLocalVideo = {},
-            onRemoteVideo = {},
-            onOfferReady = {}
-        )
+    val permLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { perms ->
+        if (perms[Manifest.permission.RECORD_AUDIO] == true) permGranted = true
+    }
+    LaunchedEffect(Unit) {
+        permLauncher.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
+    }
+
+    LaunchedEffect(permGranted) {
+        if (!permGranted) return@LaunchedEffect
+
+        audioManager.mode             = AudioManager.MODE_IN_COMMUNICATION
+        audioManager.isSpeakerphoneOn = false
+
+        // اقرأ الـ offer إذا كان المستجيب
+        db.collection("calls").document(callId).get()
+            .addOnSuccessListener { doc ->
+                val offerSdp = doc.getString("offer") ?: ""
+                val isOffer  = offerSdp.isBlank()
+
+                if (isOffer) {
+                    callVM.startCall(
+                        context       = context,
+                        callId        = callId,
+                        eglBase       = eglBase,
+                        onLocalVideo  = {},
+                        onRemoteVideo = {},
+                        onOfferReady  = {}
+                    )
+                } else {
+                    callVM.answerCall(
+                        context       = context,
+                        callId        = callId,
+                        offerSdp      = offerSdp,
+                        eglBase       = eglBase,
+                        onLocalVideo  = {},
+                        onRemoteVideo = {}
+                    )
+                }
+            }
     }
 
     // ✅ Timer
     LaunchedEffect(Unit) {
-        audioManager.mode             = AudioManager.MODE_IN_COMMUNICATION
-        audioManager.isSpeakerphoneOn = false
-        while (true) {
-            delay(1000L)
-            elapsedSeconds++
-        }
+        while (true) { delay(1000L); elapsedSeconds++ }
     }
 
     // ✅ Écouter si l'autre raccroche

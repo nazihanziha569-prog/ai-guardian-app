@@ -22,13 +22,14 @@ class AiService : Service(), SensorEventListener {
 
     private lateinit var sensorManager: SensorManager
     private var accelerometer: Sensor? = null
-
-    // ✅ initialisé immédiatement — pas besoin d'attendre Firestore
     private lateinit var aiManager: AiManager
 
     override fun onCreate() {
         super.onCreate()
         startForeground(NOTIF_ID, createNotification())
+
+        // ✅ créé UNE SEULE FOIS
+        aiManager = AiManager(this)
 
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
@@ -38,34 +39,16 @@ class AiService : Service(), SensorEventListener {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val uid = FirebaseAuth.getInstance().currentUser?.uid
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return START_STICKY
 
-        if (uid != null) {
-            FirebaseFirestore.getInstance()
-                .collection("Users")
-                .document(uid)
-                .get()
-                .addOnSuccessListener { doc ->
-                    val nom = doc.getString("nom") ?: "Utilisateur"
-                    // ✅ crée AiManager avec le vrai nom
-                    aiManager = AiManager(this, surveilleeName = nom)
-                }
-                .addOnFailureListener {
-                    // ✅ Firestore échoue → démarre quand même avec nom par défaut
-                    if (!::aiManager.isInitialized) {
-                        aiManager = AiManager(this)
-                    }
-                }
-
-            // ✅ démarre immédiatement sans attendre Firestore
-            //    le nom sera mis à jour quand Firestore répond
-            if (!::aiManager.isInitialized) {
-                aiManager = AiManager(this)
+        FirebaseFirestore.getInstance()
+            .collection("Users")
+            .document(uid)
+            .get()
+            .addOnSuccessListener { doc ->
+                val nom = doc.getString("nom") ?: "Utilisateur"
+                aiManager.updateName(nom)
             }
-
-        } else {
-            aiManager = AiManager(this)
-        }
 
         return START_STICKY
     }

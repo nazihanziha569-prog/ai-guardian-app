@@ -35,64 +35,69 @@ fun OutgoingCallScreen(
     callVM       : CallViewModel,
     eglBase      : EglBase
 ) {
-    val db      = FirebaseFirestore.getInstance()
-    val context = LocalContext.current
+    val db           = FirebaseFirestore.getInstance()
+    val context      = LocalContext.current
     val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
-    var calleeName  by remember { mutableStateOf("…") }
-    var initial     by remember { mutableStateOf("?") }
-    var callStatus  by remember { mutableStateOf("Appel en cours…") }
-    var navigated   by remember { mutableStateOf(false) }
-    var timeLeft    by remember { mutableStateOf(60) }
+    var calleeName by remember { mutableStateOf("…") }
+    var navigated  by remember { mutableStateOf(false) }
+    var timeLeft   by remember { mutableStateOf(60) }
 
-    // Résoudre nom
+    // ✅ 1. اقرأ اسم المستجيب
     LaunchedEffect(toUserId) {
         db.collection("Users").document(toUserId).get().addOnSuccessListener { doc ->
-            val nom = doc.getString("nom") ?: toUserId
-            calleeName = nom
-            initial    = nom.take(1).uppercase()
+            calleeName = doc.getString("nom") ?: toUserId
         }
     }
 
-    // ✅ Écouter Firestore
+    // ✅ 2. شغّل WebRTC فوراً — اعمل offer
+    LaunchedEffect(callId) {
+        callVM.startCall(
+            context       = context,
+            callId        = callId,
+            eglBase       = eglBase,
+            onLocalVideo  = {},
+            onRemoteVideo = {},
+            onOfferReady  = {}
+        )
+    }
+
+    // ✅ 3. اسمع الـ status
     LaunchedEffect(callId) {
         db.collection("calls").document(callId).addSnapshotListener { snap, _ ->
             val status = snap?.getString("status") ?: return@addSnapshotListener
             when (status) {
-                // ✅ FIX 2: appelé a accepté → naviguer vers ActiveCallScreen (isOutgoing=true)
-                "accepted" -> {
-                    if (!navigated) {
-                        navigated = true
-                        val encoded = java.net.URLEncoder.encode(calleeName, "UTF-8")
-                        navController.navigate("active_call/$callId/$encoded/true/$callType") {
-                            popUpTo("outgoing_call/$callId/$toUserId/$callType") { inclusive = true }
-                        }
+                "accepted" -> if (!navigated) {
+                    navigated = true
+                    val encoded = java.net.URLEncoder.encode(calleeName, "UTF-8")
+                    // ✅ نفس الـ screen للاثنين — CallScreen
+                    navController.navigate("call_screen/$callId/caller/$encoded/$callType") {
+                        popUpTo("outgoing_call/$callId/$toUserId/$callType") { inclusive = true }
                     }
                 }
-                "rejected" -> {
-                    callStatus = "Appel rejeté ❌"
+                "rejected", "missed" -> {
                     callVM.endCall(callId)
-                    // ✅ FIX 4: sortie sécurisée
-                    safeBack(navController)
+                    safeNavigate(navController)
                 }
-                "ended", "missed" -> {
+                "ended" -> {
                     callVM.endCall(callId)
-                    safeBack(navController)
+                    safeNavigate(navController)
                 }
             }
         }
     }
 
-    // ✅ Timeout 60s
+    // ✅ 4. Timeout 60s
     LaunchedEffect(callId) {
-        while (timeLeft > 0 && !navigated) {
+        repeat(60) {
+            if (navigated) return@LaunchedEffect
             delay(1000L)
             timeLeft--
         }
-        if (!navigated && timeLeft == 0) {
+        if (!navigated) {
             db.collection("calls").document(callId).update("status", "missed")
             callVM.endCall(callId)
-            safeBack(navController)
+            safeNavigate(navController)
         }
     }
 
@@ -106,74 +111,58 @@ fun OutgoingCallScreen(
     )
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
+        modifier = Modifier.fillMaxSize()
             .background(Brush.verticalGradient(listOf(Color(0xFF1A1035), Color(0xFF0F0F14)))),
         contentAlignment = Alignment.Center
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp)
+            modifier = Modifier.fillMaxSize().padding(32.dp)
         ) {
             Spacer(Modifier.height(80.dp))
-
-            Text(
-                if (callType == "video") "📹 Appel vidéo" else "📞 Appel audio",
-                fontSize = 14.sp, color = Color.White.copy(0.4f)
-            )
-
+            Text(if (callType == "video") "📹 Appel vidéo" else "📞 Appel audio",
+                fontSize = 14.sp, color = Color.White.copy(0.4f))
             Spacer(Modifier.height(20.dp))
-
             Box(
-                modifier = Modifier.size(110.dp).scale(pulse.value).clip(CircleShape).background(Color(0xFF1976D2)),
+                modifier = Modifier.size(110.dp).scale(pulse.value)
+                    .clip(CircleShape).background(Color(0xFF1976D2)),
                 contentAlignment = Alignment.Center
             ) {
-                Text(initial, fontSize = 42.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(calleeName.take(1).uppercase(), fontSize = 42.sp,
+                    fontWeight = FontWeight.Bold, color = Color.White)
             }
-
             Spacer(Modifier.height(20.dp))
             Text(calleeName, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            Spacer(Modifier.height(10.dp))
-            Text(callStatus, fontSize = 16.sp, color = Color.White.copy(0.6f))
-            Text(
-                "⏱ ${timeLeft}s",
-                fontSize = 13.sp,
-                color = if (timeLeft <= 10) Color(0xFFFF3B30) else Color.White.copy(0.3f)
-            )
-
+            Spacer(Modifier.height(8.dp))
+            Text("Appel en cours…", fontSize = 16.sp, color = Color.White.copy(0.6f))
+            Text("⏱ ${timeLeft}s", fontSize = 13.sp,
+                color = if (timeLeft <= 10) Color(0xFFFF3B30) else Color.White.copy(0.3f))
             Spacer(Modifier.weight(1f))
-
-            // Annuler
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
                     modifier = Modifier.size(72.dp).clip(CircleShape).background(Color(0xFFFF3B30)),
                     contentAlignment = Alignment.Center
                 ) {
                     IconButton(onClick = {
-                        // ✅ "rejected" → IncomingCallScreen voit "rejected" → les DEUX sortent
                         db.collection("calls").document(callId).update("status", "rejected")
                         callVM.endCall(callId)
-                        safeBack(navController)
+                        safeNavigate(navController)
                     }) {
-                        Icon(Icons.Default.CallEnd, contentDescription = null, tint = Color.White, modifier = Modifier.size(32.dp))
+                        Icon(Icons.Default.CallEnd, tint = Color.White,
+                            contentDescription = null, modifier = Modifier.size(32.dp))
                     }
                 }
                 Spacer(Modifier.height(8.dp))
                 Text("Annuler", color = Color.White.copy(0.7f), fontSize = 13.sp)
             }
-
             Spacer(Modifier.height(70.dp))
         }
     }
-}
 
-// ✅ FIX 4: navigation sécurisée commune
-private fun safeBack(navController: NavController) {
-    val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
-    if (uid == null) {
-        navController.navigate("login") { popUpTo(0) { inclusive = true } }
-        return
-    }
+
+}
+private fun safeNavigate(navController: NavController) {
+    val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: return
     com.google.firebase.firestore.FirebaseFirestore.getInstance()
         .collection("Users").document(uid).get()
         .addOnSuccessListener { doc ->
@@ -182,11 +171,6 @@ private fun safeBack(navController: NavController) {
                 "surveille"   -> "dashboard_surveille"
                 else          -> "welcome"
             }
-            navController.navigate(dest) {
-                popUpTo(0) { inclusive = true }
-            }
-        }
-        .addOnFailureListener {
-            navController.navigate("welcome") { popUpTo(0) { inclusive = true } }
+            navController.navigate(dest) { popUpTo(0) { inclusive = true } }
         }
 }

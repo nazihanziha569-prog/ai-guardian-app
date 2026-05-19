@@ -53,10 +53,13 @@ class RappelViewModel(
         alarmRepo.scheduleAlarm(time, message)
     }
 
-    fun deleteRappel(id: String) {
+    fun deleteRappel(id: String, time: Long, message: String) {
         FirebaseFirestore.getInstance()
             .collection("Rappels")
             .document(id)
             .delete()
+
+        // ✅ إلغاء الـ alarm من الجهاز
+        alarmRepo.cancelAlarm(time, message)
     }
 }

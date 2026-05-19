@@ -51,10 +51,16 @@ import com.google.firebase.firestore.FirebaseFirestore
 import livekit.org.webrtc.EglBase
 // ✅ Ajouter à la place
 import android.Manifest
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
+import com.example.ai_guardian.ui.screens.CallScreen
 import com.example.ai_guardian.viewmodel.ChatViewModel
 
-
+object GlobalAlarmState {
+    var pendingMessage: String? = null
+}
 class MainActivity : ComponentActivity() {
+
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) {
             // permission accordée ou refusée — on continue dans les 2 cas
@@ -68,7 +74,6 @@ class MainActivity : ComponentActivity() {
         requestNotificationPermissionIfNeeded()
         BatteryOptimizationHelper.requestIgnoreBatteryOptimizations(this)
 
-        AlarmHolder.soundManager = AlarmSoundManager(this)
 
         setContent {
 
@@ -81,18 +86,27 @@ class MainActivity : ComponentActivity() {
 
             val navController = rememberNavController()
 
-            // ✅ FIX: lire alarm_message depuis l'intent au démarrage
             val alarmMessage = remember {
                 mutableStateOf<String?>(intent.getStringExtra("alarm_message"))
             }
 
-            // ✅ FIX: naviguer vers "alarm/{message}" (pas "alarm_screen/...")
-            LaunchedEffect(alarmMessage.value) {
-                alarmMessage.value?.let { msg ->
-                    // Encoder le message pour éviter les / dans la route
-                    val encoded = java.net.URLEncoder.encode(msg, "UTF-8")
-                    navController.navigate("alarm/$encoded")
-                    alarmMessage.value = null  // consommer une seule fois
+
+
+            LaunchedEffect(navController) {
+                navController.addOnDestinationChangedListener { controller, _, _ ->
+
+                    // من onCreate (app كانت مغلقة)
+                    val fromIntent = alarmMessage.value
+                    // من onNewIntent (app كانت مفتوحة)
+                    val fromGlobal = GlobalAlarmState.pendingMessage
+
+                    val msg = fromIntent ?: fromGlobal
+                    if (msg != null) {
+                        val encoded = java.net.URLEncoder.encode(msg, "UTF-8")
+                        controller.navigate("alarm/$encoded")
+                        alarmMessage.value = null
+                        GlobalAlarmState.pendingMessage = null
+                    }
                 }
             }
             DisposableEffect(Unit) {
@@ -243,7 +257,8 @@ class MainActivity : ComponentActivity() {
                 }
 
                 composable("dashboard_surveille") {
-                    val alertViewModel = remember { AlertViewModel() }
+                    val context = LocalContext.current
+                    val alertViewModel = remember { AlertViewModel(context) }
                     DashboardSurveilleScreen(
                         alertViewModel = alertViewModel,
                         navController  = navController,
@@ -313,16 +328,10 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                // ── Alarm ─────────────────────────────────────────────────────
-                // ✅ FIX: route unifiée "alarm/{message}" (supprime "alarm_screen/...")
-                composable("alarm/{message}") { backStack ->
-                    val msg = backStack.arguments?.getString("message")
-                        ?.let { java.net.URLDecoder.decode(it, "UTF-8") }
-                        ?: ""
-                    AlarmScreen(
-                        message = msg,
-                        onStop  = { navController.popBackStack() }
-                    )
+                composable("alarm/{message}") { back ->
+                    val msg = back.arguments?.getString("message")
+                        ?.let { java.net.URLDecoder.decode(it, "UTF-8") } ?: ""
+                    AlarmScreen(message = msg, onStop = { navController.popBackStack() })
                 }
 
                 // ── Appel entrant ─────────────────────────────────────────────
@@ -381,7 +390,8 @@ class MainActivity : ComponentActivity() {
                         navController   = navController,
                         callId          = callId,
                         participantName = participantName,
-                        callVM          = callVM
+                        callVM          = callVM,
+                        eglBase         = eglBase
                     )
                 }
 
@@ -399,10 +409,39 @@ class MainActivity : ComponentActivity() {
                         onReject      = {}
                     )
                 }
+
+                // ✅ زيد هذا في NavHost
+                composable("call_screen/{callId}/{role}/{participantName}/{callType}") { back ->
+                    val callId   = back.arguments?.getString("callId") ?: ""
+                    val role     = back.arguments?.getString("role") ?: "caller"
+                    val name     = java.net.URLDecoder.decode(back.arguments?.getString("participantName") ?: "", "UTF-8")
+                    val callType = back.arguments?.getString("callType") ?: "audio"
+                    CallScreen(
+                        navController   = navController,
+                        callId          = callId,
+                        role            = role,
+                        participantName = name,
+                        callType        = callType,
+                        callVM          = callVM,
+                        eglBase         = eglBase
+                    )
+                }
             }
         }
     }
-    private fun requestNotificationPermissionIfNeeded() {
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.getStringExtra("alarm_message")?.let { msg ->
+            // ✅ عدّل alarmMessage الموجود في setContent
+            // ما نقدروش نوصلوا من هنا مباشرة — نستعملو GlobalAlarmState
+            GlobalAlarmState.pendingMessage = msg
+        }
+    }
+
+
+            private fun requestNotificationPermissionIfNeeded() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val granted = ContextCompat.checkSelfPermission(
                 this, Manifest.permission.POST_NOTIFICATIONS

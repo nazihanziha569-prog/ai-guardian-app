@@ -14,24 +14,21 @@ import com.google.firebase.messaging.RemoteMessage
 class MyFirebaseService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
-
-        val type = message.data["type"]
+        val type = message.data["type"] ?: ""
 
         when (type) {
-            // ✅ FCM réveille le service keyword
-            "start_listening" -> {
-                android.util.Log.d("FCM", "🎤 FCM → Starting keyword listener")
-                KeywordListenerService.start(this)
-            }
-            "stop_listening" -> {
-                android.util.Log.d("FCM", "🔇 FCM → Stopping keyword listener")
-                KeywordListenerService.stop(this)
-            }
-            // ✅ Notification normale (alertes)
+            "start_listening" -> KeywordListenerService.start(this)
+            "stop_listening"  -> KeywordListenerService.stop(this)
+
+            // ✅ Alertes + Rappels
             else -> {
-                val title = message.data["title"] ?: "Alert"
-                val body  = message.data["body"]  ?: ""
-                showNotification(title, body)
+                val title = message.notification?.title
+                    ?: message.data["title"]
+                    ?: "AI Guardian"
+                val body = message.notification?.body
+                    ?: message.data["body"]
+                    ?: ""
+                if (title.isNotBlank()) showNotification(title, body)
             }
         }
     }

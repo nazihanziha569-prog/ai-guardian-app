@@ -3,115 +3,71 @@ package com.example.ai_guardian.viewmodel
 import android.content.Context
 import androidx.compose.runtime.*
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.example.ai_guardian.data.model.Call
 import com.example.ai_guardian.data.repository.CallRepository
 import com.example.ai_guardian.data.repository.WebRTCRepository
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import livekit.org.webrtc.EglBase
 import livekit.org.webrtc.VideoTrack
-
 
 class CallViewModel(
     private val repo: CallRepository = CallRepository()
 ) : ViewModel() {
 
     var calls     by mutableStateOf<List<Call>>(emptyList())
-        private set
     var isLoading by mutableStateOf(false)
-        private set
-
 
     private var listener  : ListenerRegistration? = null
     private var webRTCRepo: WebRTCRepository?      = null
 
-
-    // ── Écouter les appels d'un uid ───────────────────────────────────────
     fun listenCallsByUid(uid: String) {
         isLoading = true
-        listener = repo.listenCallsByUid(uid) { rawCalls ->
-
-            viewModelScope.launch(Dispatchers.IO) {
-
-                val resolved = rawCalls.map { call ->
-                    call.copy(
-                        from = call.from, // ❌ pas resolve ici
-                        to   = call.to
-                    )
-                }
-
-                launch(Dispatchers.Main) {
-                    calls     = resolved
-                    isLoading = false
-                }
-            }
-        }
-    }
-
-    // ── Écouter les appels entre deux personnes ───────────────────────────
-    fun listenCallsBetween(uid1: String, uid2: String) {
-        isLoading = true
-        listener = repo.listenCallsBetween(uid1, uid2) { result ->
-            calls     = result
+        listener = repo.listenCallsByUid(uid) { list ->
+            calls     = list
             isLoading = false
         }
     }
 
-    // ── Créer un appel (sans WebRTC — juste le doc Firestore) ─────────────
-    fun sendCall(
-        from     : String,
-        to       : String,
-        callType : String = "video",
-        onSuccess: (String) -> Unit = {}
-    ) {
-        repo.createCall(from, to, callType) { callId -> onSuccess(callId) }
+    fun sendCall(from: String, to: String, callType: String = "video", onSuccess: (String) -> Unit = {}) {
+        repo.createCall(from, to, callType) { onSuccess(it) }
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // ✅ FIX: startCall — crée l'offer ET l'écrit dans Firestore
-    //         onOfferReady est appelé SEULEMENT quand offer est dans Firestore
-    //         → c'est là que l'appelant navigue vers VideoCallScreen
-    // ─────────────────────────────────────────────────────────────────────
+    // ✅ المتصل — يعمل offer ويكتبه في Firestore
     fun startCall(
         context      : Context,
         callId       : String,
         eglBase      : EglBase,
         onLocalVideo : (VideoTrack?) -> Unit,
         onRemoteVideo: (VideoTrack?) -> Unit,
-        onOfferReady : () -> Unit = {}          // ✅ nouveau callback
+        onOfferReady : () -> Unit = {}
     ) {
+        webRTCRepo?.release()
         val r = WebRTCRepository(context).also { webRTCRepo = it }
-        r.init(eglBase)                          // ✅ un seul EglBase
+        r.init(eglBase)
         r.onLocalStream  = onLocalVideo
         r.onRemoteStream = onRemoteVideo
         r.createLocalStream(eglBase)
         r.createPeerConnection(callId, isOffer = true)
-
         r.createOffer(callId) {
-            // ✅ Offer écrit dans Firestore → on peut naviguer maintenant
             onOfferReady()
-
-            // Écouter answer de l'appelé
+            // ✅ اسمع الـ answer
             FirebaseFirestore.getInstance()
                 .collection("calls").document(callId)
                 .addSnapshotListener { snap, _ ->
                     val answer = snap?.getString("answer") ?: return@addSnapshotListener
                     if (answer.isNotEmpty()) r.setRemoteAnswer(answer)
                 }
-
-            // Écouter ICE candidates de l'appelé
+            // ✅ اسمع الـ ICE candidates تاع المستجيب
             FirebaseFirestore.getInstance()
                 .collection("calls").document(callId)
                 .collection("calleeCandidates")
                 .addSnapshotListener { snap, _ ->
-                    snap?.documentChanges?.forEach { change ->
-                        val c = change.document
+                    snap?.documentChanges?.forEach { ch ->
+                        val c = ch.document
                         r.addIceCandidate(
                             c.getString("candidate") ?: return@forEach,
-                            c.getString("sdpMid")    ?: "",
+                            c.getString("sdpMid") ?: "",
                             (c.getLong("sdpMLineIndex") ?: 0).toInt()
                         )
                     }
@@ -119,22 +75,7 @@ class CallViewModel(
         }
     }
 
-    private var pendingLocalVideo  : ((VideoTrack?) -> Unit)? = null
-    private var pendingRemoteVideo : ((VideoTrack?) -> Unit)? = null
-
-    fun attachVideoCallbacks(
-        onLocalVideo : (VideoTrack?) -> Unit,
-        onRemoteVideo: (VideoTrack?) -> Unit
-    ) {
-        pendingLocalVideo  = onLocalVideo
-        pendingRemoteVideo = onRemoteVideo
-        webRTCRepo?.onLocalStream  = onLocalVideo
-        webRTCRepo?.onRemoteStream = onRemoteVideo
-    }
-
-    // ─────────────────────────────────────────────────────────────────────
-    // ✅ FIX: answerCall — offerSdp doit être non-vide
-    // ─────────────────────────────────────────────────────────────────────
+    // ✅ المستجيب — يقرأ الـ offer ويعمل answer
     fun answerCall(
         context      : Context,
         callId       : String,
@@ -143,29 +84,25 @@ class CallViewModel(
         onLocalVideo : (VideoTrack?) -> Unit,
         onRemoteVideo: (VideoTrack?) -> Unit
     ) {
-        if (offerSdp.isBlank()) {
-            android.util.Log.e("CallVM", "❌ offerSdp est vide — answerCall annulé")
-            return
-        }
-
+        if (offerSdp.isBlank()) return
+        webRTCRepo?.release()
         val r = WebRTCRepository(context).also { webRTCRepo = it }
-        r.init(eglBase)                          // ✅ un seul EglBase
+        r.init(eglBase)
         r.onLocalStream  = onLocalVideo
         r.onRemoteStream = onRemoteVideo
         r.createLocalStream(eglBase)
         r.createPeerConnection(callId, isOffer = false)
-
         r.createAnswer(callId, offerSdp) {
-            // Écouter ICE candidates de l'appelant
+            // ✅ اسمع الـ ICE candidates تاع المتصل
             FirebaseFirestore.getInstance()
                 .collection("calls").document(callId)
                 .collection("callerCandidates")
                 .addSnapshotListener { snap, _ ->
-                    snap?.documentChanges?.forEach { change ->
-                        val c = change.document
+                    snap?.documentChanges?.forEach { ch ->
+                        val c = ch.document
                         r.addIceCandidate(
                             c.getString("candidate") ?: return@forEach,
-                            c.getString("sdpMid")    ?: "",
+                            c.getString("sdpMid") ?: "",
                             (c.getLong("sdpMLineIndex") ?: 0).toInt()
                         )
                     }
@@ -173,6 +110,16 @@ class CallViewModel(
         }
     }
 
+    // ✅ ربط الـ video callbacks بعد navigation
+    fun attachVideoCallbacks(
+        onLocalVideo : (VideoTrack?) -> Unit,
+        onRemoteVideo: (VideoTrack?) -> Unit
+    ) {
+        webRTCRepo?.onLocalStream  = onLocalVideo
+        webRTCRepo?.onRemoteStream = onRemoteVideo
+        // أعد إطلاق الـ tracks إذا موجودة
+        webRTCRepo?.reEmitTracks()
+    }
 
     fun switchCamera()                 = webRTCRepo?.switchCamera()
     fun toggleMic(enabled: Boolean)    = webRTCRepo?.toggleMic(enabled)
@@ -188,13 +135,9 @@ class CallViewModel(
 
     override fun onCleared() {
         super.onCleared()
-
         listener?.remove()
-        listener = null
-
         webRTCRepo?.release()
         webRTCRepo = null
     }
-
 
 }

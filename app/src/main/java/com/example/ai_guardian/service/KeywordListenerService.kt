@@ -161,7 +161,7 @@ class KeywordListenerService : Service() {
 
         openApp()
         AppEvents.emit(AppEvents.Event.OpenChatbotEmergency(text))
-        if (isEmergency) sendFirebaseAlert(text)
+
     }
 
     private fun openApp() {
@@ -170,24 +170,7 @@ class KeywordListenerService : Service() {
         })
     }
 
-    private fun sendFirebaseAlert(text: String) {
-        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
-        FirebaseFirestore.getInstance()
-            .collection("Associations")
-            .whereEqualTo("superviseeId", uid).get()
-            .addOnSuccessListener { result ->
-                val superviseurId = result.documents
-                    .firstOrNull()?.getString("superviseurId") ?: ""
-                FirebaseFirestore.getInstance().collection("Alerts").add(hashMapOf(
-                    "superviseeId"  to uid,
-                    "superviseurId" to superviseurId,
-                    "type"          to "danger",
-                    "message"       to "🎤 Mot-clé vocal : \"$text\"",
-                    "timestamp"     to System.currentTimeMillis(),
-                    "status"        to "unconfirmed"
-                ))
-            }
-    }
+
 
     private fun buildNotification(): Notification {
         val channelId = "keyword_listener"

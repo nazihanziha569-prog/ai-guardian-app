@@ -41,6 +41,9 @@ fun VideoCallScreen(
     var micEnabled  by remember { mutableStateOf(true) }
     var camEnabled  by remember { mutableStateOf(true) }
     var statusText  by remember { mutableStateOf("Connexion en cours...") }
+    var permGranted by remember { mutableStateOf(false) }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     val isOffer = roomName.isNotBlank() // appelant = true
 
@@ -51,12 +54,7 @@ fun VideoCallScreen(
         val audioOk = perms[Manifest.permission.RECORD_AUDIO] == true
 
         if (camOk && audioOk) {
-            // ✅ FIX: attachVideoCallbacks — WebRTC déjà démarré avant navigation
-            //    ici on branche juste les callbacks vidéo sur le renderer
-            callVM.attachVideoCallbacks(
-                onLocalVideo  = { localTrack  = it },
-                onRemoteVideo = { remoteTrack = it; statusText = "Connecté ✅" }
-            )
+            permGranted = true // ✅ permissions OK → شغّل الـ call
         } else {
             statusText = "❌ Permissions caméra/micro refusées"
         }
@@ -64,6 +62,36 @@ fun VideoCallScreen(
 
     LaunchedEffect(Unit) {
         permLauncher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
+    }
+
+    LaunchedEffect(permGranted) {
+        if (!permGranted) return@LaunchedEffect
+
+        val isCallerSide = roomName == "offer"
+
+        if (isCallerSide) {
+            // ✅ المتصل — الـ WebRTC شغّال مسبقاً في OutgoingCallScreen
+            // بس نربط الـ video callbacks
+            callVM.attachVideoCallbacks(
+                onLocalVideo  = { localTrack  = it },
+                onRemoteVideo = { remoteTrack = it; statusText = "Connecté ✅" }
+            )
+        } else {
+            // ✅ المستجيب — اقرأ الـ offer واعمل answer
+            com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                .collection("calls").document(callId).get()
+                .addOnSuccessListener { doc ->
+                    val offerSdp = doc.getString("offer") ?: return@addOnSuccessListener
+                    callVM.answerCall(
+                        context       = context,
+                        callId        = callId,
+                        offerSdp      = offerSdp,
+                        eglBase       = eglBase,
+                        onLocalVideo  = { localTrack  = it },
+                        onRemoteVideo = { remoteTrack = it; statusText = "Connecté ✅" }
+                    )
+                }
+        }
     }
 
     // ✅ FIX: NE PAS libérer eglBase ici — il appartient à MainActivity

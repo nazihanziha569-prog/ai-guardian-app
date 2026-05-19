@@ -121,7 +121,7 @@ fun RappelScreen() {
                             fontSize = 20.sp,
                             color = Color.Red,
                             modifier = Modifier.clickable {
-                                viewModel.deleteRappel(rappel.id)
+                                viewModel.deleteRappel(rappel.id, rappel.time, rappel.message)
                             }
                         )
                     }

@@ -41,6 +41,9 @@ fun DashboardScreen(
     // ✅ Écouter appels entrants vers ce superviseur
     LaunchedEffect(Unit) {
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return@LaunchedEffect
+        // ✅ جديد
+        val shownCalls = mutableSetOf<String>() // ✅ نتتبع الـ calls اللي عرضناهم
+
         FirebaseFirestore.getInstance()
             .collection("calls")
             .whereEqualTo("to", uid)
@@ -49,11 +52,17 @@ fun DashboardScreen(
                 snapshot?.documents?.forEach { doc ->
                     val from   = doc.getString("from") ?: ""
                     val callId = doc.id
-                    val route  = navController.currentDestination?.route ?: ""
+
+                    // ✅ إذا عرضنا هذا الـ call مسبقاً، تجاهله
+                    if (shownCalls.contains(callId)) return@forEach
+
+                    val route = navController.currentDestination?.route ?: ""
                     if (!route.startsWith("incoming_call") &&
-                        !route.startsWith("active_call") &&
+                        !route.startsWith("active_call")   &&
                         !route.startsWith("outgoing_call") &&
+                        !route.startsWith("call_screen")   &&
                         !route.startsWith("video_call")) {
+                        shownCalls.add(callId) // ✅ سجّل الـ call
                         navController.navigate("incoming_call/$from/$callId")
                     }
                 }

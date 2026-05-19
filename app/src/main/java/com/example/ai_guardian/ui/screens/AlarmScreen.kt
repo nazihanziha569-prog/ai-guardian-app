@@ -1,6 +1,5 @@
 package com.example.ai_guardian.ui.screens
 
-import android.media.MediaPlayer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -12,30 +11,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ai_guardian.R
+import com.example.ai_guardian.service.AlarmService
+import android.content.Intent
 
 @Composable
-fun AlarmScreen(
-    message: String,
-    onStop: () -> Unit
-) {
+fun AlarmScreen(message: String, onStop: () -> Unit) {
 
     val context = LocalContext.current
-
-    val mediaPlayer = remember {
-        MediaPlayer.create(context, R.raw.alarm_sound)
-    }
-
-    DisposableEffect(Unit) {
-
-        mediaPlayer.isLooping = true
-        mediaPlayer.start()
-
-        onDispose {
-            mediaPlayer.stop()
-            mediaPlayer.release()
-        }
-    }
 
     Box(
         modifier = Modifier
@@ -43,34 +25,25 @@ fun AlarmScreen(
             .background(Color(0xFFD32F2F)),
         contentAlignment = Alignment.Center
     ) {
-
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
 
-            Text(
-                text = "🚨 ALARM",
-                fontSize = 40.sp,
-                color = Color.White,
-                fontWeight = FontWeight.Bold
-            )
-
+            Text("🚨 ALARM", fontSize = 40.sp, color = Color.White, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(10.dp))
-
-            Text(
-                text = message,
-                fontSize = 20.sp,
-                color = Color.White
-            )
-
+            Text(message, fontSize = 20.sp, color = Color.White)
             Spacer(Modifier.height(30.dp))
 
             Button(
-                onClick = onStop,
+                onClick = {
+                    // ✅ وقّف السيرفيس = يوقف الصوت + يلغي الـ notification
+                    context.stopService(Intent(context, AlarmService::class.java))
+                    onStop()
+                },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color.White,
                     contentColor = Color.Red
                 )
             ) {
-                Text("STOP")
+                Text("STOP", fontWeight = FontWeight.Bold, fontSize = 18.sp)
             }
         }
     }

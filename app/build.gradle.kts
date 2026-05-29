@@ -61,6 +61,7 @@ dependencies {
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-messaging")
     implementation("com.google.firebase:firebase-storage-ktx")
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
 
     implementation("com.google.auth:google-auth-library-oauth2-http:1.19.0")
 

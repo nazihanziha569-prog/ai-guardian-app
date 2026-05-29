@@ -29,7 +29,7 @@ class AuthViewModel(
 
     var imageUri by mutableStateOf<android.net.Uri?>(null)
 
-    // 🔥 لازم هنا (داخل الكلاس)
+
     var surveilles by mutableStateOf<List<User>>(emptyList())
 
     fun togglePasswordVisibility() {
@@ -107,13 +107,12 @@ class AuthViewModel(
         }
     }
 
-    // 🔥 نفس الشي: لازم داخل الكلاس
     fun loadSurveilles() {
 
         val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: return
         val db = FirebaseFirestore.getInstance()
 
-        // 🔥 1. نجيب associations متاع supervisor
+
         db.collection("Associations")
             .whereEqualTo("superviseurId", currentUserId)
             .get()
@@ -128,7 +127,7 @@ class AuthViewModel(
                     return@addOnSuccessListener
                 }
 
-                // 🔥 2. نجيب users بالـ ids
+
                 db.collection("Users")
                     .whereIn("uid", surveilleIds)
                     .get()
@@ -177,13 +176,13 @@ class AuthViewModel(
                             return@addOnCompleteListener
                         }
 
-                        // 🔥 IMPORTANT: update Firestore
+                        // IMPORTANT: update Firestore
                         FirebaseFirestore.getInstance()
                             .collection("Users")
                             .document(user.uid)
                             .update("email", newEmail)
 
-                        // 🔥 logout after success
+                        // logout after success
                         FirebaseAuth.getInstance().signOut()
 
                         onSuccess()
@@ -248,5 +247,49 @@ class AuthViewModel(
                     alertsCount = counts
                 }
             }
+    }
+    fun loginWithGoogle(
+        idToken: String,
+        onNew: () -> Unit,
+        onExisting: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val credential = com.google.firebase.auth.GoogleAuthProvider.getCredential(idToken, null)
+
+        FirebaseAuth.getInstance().signInWithCredential(credential)
+            .addOnSuccessListener { result ->
+                val uid = result.user?.uid ?: return@addOnSuccessListener
+                val db = FirebaseFirestore.getInstance()
+
+                db.collection("Users").document(uid).get()
+                    .addOnSuccessListener { doc ->
+                        if (!doc.exists()) {
+                            val user = hashMapOf(
+                                "uid"      to uid,
+                                "nom"      to (result.user?.displayName ?: ""),
+                                "email"    to (result.user?.email ?: ""),
+                                "role"     to "",
+                                "isOnline" to true
+                            )
+                            db.collection("Users").document(uid).set(user)
+                                .addOnSuccessListener { onNew() }
+                                .addOnFailureListener { onError(it.message ?: "Erreur") }
+                        } else {
+                            onExisting(doc.getString("role") ?: "superviseur")
+                        }
+                    }
+
+                FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
+                    db.collection("Users").document(uid).update("fcmToken", token)
+                }
+            }
+            .addOnFailureListener { onError(it.message ?: "Erreur Google") }
+    }
+    fun saveGoogleUserRole(role: String, onSuccess: () -> Unit) {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        FirebaseFirestore.getInstance()
+            .collection("Users").document(uid)
+            .update("role", role)
+            .addOnSuccessListener { onSuccess() }
     }
 }

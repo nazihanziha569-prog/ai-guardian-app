@@ -26,7 +26,8 @@ import com.example.ai_guardian.R
 fun RoleSelectionScreen(
     onSuperviseurClick: () -> Unit,
     onSurveilleClick: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    fromGoogle: Boolean = false
 ) {
 
     Column(

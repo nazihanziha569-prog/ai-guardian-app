@@ -156,9 +156,21 @@ class MainActivity : ComponentActivity() {
                 // ── Welcome ──────────────────────────────────────────────────
                 composable("welcome") {
                     WelcomeScreen(
-                        onLoginClick    = { navController.navigate("login") },
-                        onRegisterClick = { navController.navigate("role") },
-                        onAboutClick    = { navController.navigate("about") }
+                        onLoginClick     = { navController.navigate("login") },
+                        onRegisterClick  = { navController.navigate("role") },
+                        onAboutClick     = { navController.navigate("about") },
+                        authViewModel    = authViewModel,
+                        onGoogleNew      = { navController.navigate("role_google") },
+                        onGoogleExisting = { role ->
+                            val dest = when (role) {
+                                "superviseur" -> "dashboard"
+                                "surveille"   -> "dashboard_surveille"
+                                else          -> "welcome"
+                            }
+                            navController.navigate(dest) {
+                                popUpTo("welcome") { inclusive = true }
+                            }
+                        }
                     )
                 }
 
@@ -182,11 +194,33 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
+                composable("role_google") {
+                    RoleSelectionScreen(
+                        fromGoogle = true,
+                        onSuperviseurClick = {
+                            authViewModel.saveGoogleUserRole("superviseur") {
+                                navController.navigate("dashboard") {
+                                    popUpTo("welcome") { inclusive = true }
+                                }
+                            }
+                        },
+                        onSurveilleClick = {
+                            authViewModel.saveGoogleUserRole("surveille") {
+                                navController.navigate("dashboard_surveille") {
+                                    popUpTo("welcome") { inclusive = true }
+                                }
+                            }
+                        },
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+
                 // ── Login ─────────────────────────────────────────────────────
                 composable("login") {
                     LoginScreen(
                         viewModel       = authViewModel,
                         onRegisterClick = { navController.navigate("role") },
+
                         onLoginSuccess  = { role ->
                             when (role) {
                                 "admin"       -> navController.navigate("admin_dashboard") {
@@ -200,7 +234,9 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         },
-                        onScanClick = { navController.navigate("qr_scan") }
+                        onScanClick     = { navController.navigate("qr_scan") },
+                        onGoogleNew     = { navController.navigate("role_google")
+                         }
                     )
                 }
 

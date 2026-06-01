@@ -28,7 +28,54 @@ class CallRepository {
             .addOnSuccessListener { doc ->
                 onSuccess(doc.id)
                 autoEndCall(doc.id, System.currentTimeMillis())
+
+                // جيب token المستجيب وابعث FCM مباشرة
+                db.collection("Users").document(to).get()
+                    .addOnSuccessListener { toDoc ->
+                        val token = toDoc.getString("fcmToken") ?: return@addOnSuccessListener
+                        db.collection("Users").document(from).get()
+                            .addOnSuccessListener { fromDoc ->
+                                val callerName = fromDoc.getString("nom") ?: "Appel entrant"
+                                sendFCMDirect(token, doc.id, from, callerName, callType)
+                            }
+                    }
             }
+    }
+
+    private fun sendFCMDirect(
+        token: String, callId: String, from: String,
+        callerName: String, callType: String
+    ) {
+        val json = org.json.JSONObject().apply {
+            put("message", org.json.JSONObject().apply {
+                put("token", token)
+                put("data", org.json.JSONObject().apply {
+                    put("type", "incoming_call")
+                    put("callId", callId)
+                    put("from", from)
+                    put("callerName", callerName)
+                    put("callType", callType)
+                })
+                put("android", org.json.JSONObject().apply {
+                    put("priority", "high")
+                })
+            })
+        }
+
+        Thread {
+            try {
+                val url = java.net.URL("https://fcm.googleapis.com/v1/projects/ai-guardian-89b08/messages:send")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.setRequestProperty("Authorization", "Bearer credentials.accessToken.tokenValue")
+                conn.doOutput = true
+                conn.outputStream.write(json.toString().toByteArray())
+                conn.responseCode
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }.start()
     }
 
     fun listenCallsByUid(uid: String, onChange: (List<Call>) -> Unit): ListenerRegistration {

@@ -1,5 +1,6 @@
 package com.example.ai_guardian.ui.screens
 
+import android.content.Context
 import android.media.MediaPlayer
 import android.widget.Toast
 import androidx.compose.animation.core.*
@@ -46,6 +47,12 @@ fun IncomingCallScreen(
     var callType      by remember { mutableStateOf("video") }
     var isAccepting   by remember { mutableStateOf(false) }
     var timeLeft      by remember { mutableStateOf(60) }
+    val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE)
+            as android.app.NotificationManager
+
+    LaunchedEffect(callId) {
+        notificationManager.cancel(callId.hashCode())
+    }
 
 
     // Résoudre nom + callType

@@ -28,6 +28,7 @@ import androidx.navigation.NavController
 import com.example.ai_guardian.R
 import com.example.ai_guardian.data.model.Config
 import com.example.ai_guardian.service.AiService
+import com.example.ai_guardian.service.CallListenerService
 import com.example.ai_guardian.service.KeywordListenerService
 import com.example.ai_guardian.ui.components.CallTypeDialog
 import com.example.ai_guardian.ui.components.SosFloatingButton
@@ -97,6 +98,7 @@ fun DashboardSurveilleScreen(
     }
 
     LaunchedEffect(Unit) {
+        CallListenerService.stop(context)
 
         KeywordListenerService.start(context)
         val prefs = context.getSharedPreferences("ai_guardian_prefs", Context.MODE_PRIVATE)
@@ -115,7 +117,7 @@ fun DashboardSurveilleScreen(
                 android.util.Log.w("Dashboard", "MIUI autostart page not found")
             }
         }
-        // ✅ طلب إزالة battery optimization
+
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
         if (!powerManager.isIgnoringBatteryOptimizations(context.packageName)) {
             try {
@@ -204,32 +206,10 @@ fun DashboardSurveilleScreen(
         )
         startLocationUpdates(fusedLocationClient, locationCallback)
 
-        // ✅ جديد
-        val shownCalls = mutableSetOf<String>() // ✅ نتتبع الـ calls اللي عرضناهم
 
-        FirebaseFirestore.getInstance()
-            .collection("calls")
-            .whereEqualTo("to", uid)
-            .whereEqualTo("status", "pending")
-            .addSnapshotListener { snapshot, _ ->
-                snapshot?.documents?.forEach { doc ->
-                    val from   = doc.getString("from") ?: ""
-                    val callId = doc.id
 
-                    // ✅ إذا عرضنا هذا الـ call مسبقاً، تجاهله
-                    if (shownCalls.contains(callId)) return@forEach
 
-                    val route = navController.currentDestination?.route ?: ""
-                    if (!route.startsWith("incoming_call") &&
-                        !route.startsWith("active_call")   &&
-                        !route.startsWith("outgoing_call") &&
-                        !route.startsWith("call_screen")   &&
-                        !route.startsWith("video_call")) {
-                        shownCalls.add(callId) // ✅ سجّل الـ call
-                        navController.navigate("incoming_call/$from/$callId")
-                    }
-                }
-            }
+
     }
     // ── وقف/بدء KeywordService حسب الـ tab ───────────────────────────────
     LaunchedEffect(selectedScreen) {
@@ -243,6 +223,8 @@ fun DashboardSurveilleScreen(
     DisposableEffect(Unit) {
         onDispose {
             KeywordListenerService.stop(context)
+
+            CallListenerService.start(context)
 
             val uid = FirebaseAuth.getInstance().currentUser?.uid
             if (uid != null) {

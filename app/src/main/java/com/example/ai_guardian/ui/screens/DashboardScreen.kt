@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.ai_guardian.R
+import com.example.ai_guardian.service.CallListenerService
 import com.example.ai_guardian.viewmodel.AuthViewModel
 import com.example.ai_guardian.viewmodel.CallViewModel
 import com.google.firebase.auth.FirebaseAuth
@@ -38,35 +39,24 @@ fun DashboardScreen(
     var isDarkMode     by remember { mutableStateOf(false) }
     var listeningActive by remember { mutableStateOf(false) }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+
     // ✅ Écouter appels entrants vers ce superviseur
     LaunchedEffect(Unit) {
+
+        CallListenerService.stop(context)
+
+
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return@LaunchedEffect
-        // ✅ جديد
-        val shownCalls = mutableSetOf<String>() // ✅ نتتبع الـ calls اللي عرضناهم
 
-        FirebaseFirestore.getInstance()
-            .collection("calls")
-            .whereEqualTo("to", uid)
-            .whereEqualTo("status", "pending")
-            .addSnapshotListener { snapshot, _ ->
-                snapshot?.documents?.forEach { doc ->
-                    val from   = doc.getString("from") ?: ""
-                    val callId = doc.id
 
-                    // ✅ إذا عرضنا هذا الـ call مسبقاً، تجاهله
-                    if (shownCalls.contains(callId)) return@forEach
 
-                    val route = navController.currentDestination?.route ?: ""
-                    if (!route.startsWith("incoming_call") &&
-                        !route.startsWith("active_call")   &&
-                        !route.startsWith("outgoing_call") &&
-                        !route.startsWith("call_screen")   &&
-                        !route.startsWith("video_call")) {
-                        shownCalls.add(callId) // ✅ سجّل الـ call
-                        navController.navigate("incoming_call/$from/$callId")
-                    }
-                }
-            }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            CallListenerService.start(context)
+        }
     }
 
     MaterialTheme(colorScheme = if (isDarkMode) darkColorScheme() else lightColorScheme()) {

@@ -60,7 +60,7 @@ fun DetailsScreen(userId: String, navController: NavController, callVM: CallView
         Box(modifier = Modifier.fillMaxSize().padding(padding).background(DBgPage)) {
             when (selectedTab) {
                 0 -> TabDetails(userId, navController, callVM, eglBase)
-                1 -> TabConfig(userId)
+                1 -> TabConfig(userId, navController)
                 2 -> TabAppels(userId, navController, callVM, eglBase)
             }
         }
@@ -129,6 +129,8 @@ private fun TabDetails(userId: String, navController: NavController, callVM: Cal
         )
     }
 
+
+
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(vertical = 14.dp)) {
 
@@ -175,7 +177,10 @@ private fun TabDetails(userId: String, navController: NavController, callVM: Cal
                         Spacer(Modifier.width(8.dp))
                         Text("Appeler ${user?.nom ?: ""}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     }
+
+
                 }
+
             }
         }
 
@@ -269,11 +274,12 @@ private fun MiniAlertCard(alert: Alert) {
 
 // ── Tab 2 — inchangé ──────────────────────────────────────────────────────────
 @Composable
-private fun TabConfig(userId: String) {
+private fun TabConfig(userId: String, navController: NavController) {
     val db = FirebaseFirestore.getInstance()
     var config    by remember { mutableStateOf(Config(userId = userId)) }
     var isSaved   by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(true) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(userId) {
         try {
@@ -287,6 +293,30 @@ private fun TabConfig(userId: String) {
     }
 
     if (isLoading) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = DBlue) }; return }
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Supprimer cette personne ?", fontWeight = FontWeight.Bold) },
+            text  = { Text("Cette action supprimera définitivement toutes les données associées.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteDialog = false
+                        db.collection("Associations").whereEqualTo("superviseeId", userId).get()
+                            .addOnSuccessListener { result -> for (doc in result) doc.reference.delete() }
+                        db.collection("Alerts").whereEqualTo("superviseeId", userId).get()
+                            .addOnSuccessListener { result -> for (doc in result) doc.reference.delete() }
+                        db.collection("Users").document(userId).delete()
+                            .addOnSuccessListener { navController.popBackStack() }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = DRedAlert)
+                ) { Text("Supprimer", color = Color.White) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showDeleteDialog = false }) { Text("Annuler") }
+            }
+        )
+    }
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Spacer(Modifier.height(4.dp))
@@ -347,6 +377,17 @@ private fun TabConfig(userId: String) {
                 Icon(Icons.Default.CheckCircle, contentDescription = null, tint = DGreen); Spacer(Modifier.width(8.dp))
                 Text("Configuration sauvegardée ✅", color = DGreen, fontWeight = FontWeight.Medium)
             }
+        }
+
+        OutlinedButton(
+            onClick  = { showDeleteDialog = true },
+            modifier = Modifier.fillMaxWidth(),
+            shape    = RoundedCornerShape(14.dp),
+            border   = androidx.compose.foundation.BorderStroke(1.dp, DRedAlert)
+        ) {
+            Icon(Icons.Default.Delete, contentDescription = null, tint = DRedAlert)
+            Spacer(Modifier.width(8.dp))
+            Text("Supprimer cette personne", color = DRedAlert, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(24.dp))
     }

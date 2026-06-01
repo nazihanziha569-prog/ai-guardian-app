@@ -54,10 +54,15 @@ import android.Manifest
 import android.content.Intent
 import androidx.compose.ui.platform.LocalContext
 import com.example.ai_guardian.ui.screens.CallScreen
+import com.example.ai_guardian.ui.screens.CompleteProfileGoogleScreen
 import com.example.ai_guardian.viewmodel.ChatViewModel
 
 object GlobalAlarmState {
     var pendingMessage: String? = null
+}
+object GlobalCallState {
+    var pendingFrom  : String? = null
+    var pendingCallId: String? = null
 }
 class MainActivity : ComponentActivity() {
 
@@ -73,6 +78,8 @@ class MainActivity : ComponentActivity() {
 
         requestNotificationPermissionIfNeeded()
         BatteryOptimizationHelper.requestIgnoreBatteryOptimizations(this)
+
+        intent?.let { handleIncomingIntent(it) }
 
 
         setContent {
@@ -93,19 +100,37 @@ class MainActivity : ComponentActivity() {
 
 
             LaunchedEffect(navController) {
-                navController.addOnDestinationChangedListener { controller, _, _ ->
+                alarmMessage.value?.let { msg ->
+                    val encoded = java.net.URLEncoder.encode(msg, "UTF-8")
+                    navController.navigate("alarm/$encoded")
+                    alarmMessage.value = null
+                }
 
-                    // من onCreate (app كانت مغلقة)
-                    val fromIntent = alarmMessage.value
-                    // من onNewIntent (app كانت مفتوحة)
-                    val fromGlobal = GlobalAlarmState.pendingMessage
+                while (true) {
+                    kotlinx.coroutines.delay(500)
 
-                    val msg = fromIntent ?: fromGlobal
+                    val msg = GlobalAlarmState.pendingMessage
+                        ?: alarmMessage.value
                     if (msg != null) {
                         val encoded = java.net.URLEncoder.encode(msg, "UTF-8")
-                        controller.navigate("alarm/$encoded")
+                        navController.navigate("alarm/$encoded")
                         alarmMessage.value = null
                         GlobalAlarmState.pendingMessage = null
+                    }
+
+                    val from   = GlobalCallState.pendingFrom
+                    val callId = GlobalCallState.pendingCallId
+                    if (from != null && callId != null) {
+                        val route = navController.currentDestination?.route ?: ""
+                        if (!route.startsWith("incoming_call") &&
+                            !route.startsWith("active_call")   &&
+                            !route.startsWith("outgoing_call") &&
+                            !route.startsWith("call_screen")   &&
+                            !route.startsWith("video_call")) {
+                            navController.navigate("incoming_call/$from/$callId")
+                        }
+                        GlobalCallState.pendingFrom   = null
+                        GlobalCallState.pendingCallId = null
                     }
                 }
             }
@@ -130,6 +155,11 @@ class MainActivity : ComponentActivity() {
                                 .get()
                                 .addOnSuccessListener { doc ->
                                     val role = doc.getString("role") ?: ""
+
+                                    if (role == "surveille" || role == "superviseur") {
+                                        com.example.ai_guardian.service.CallListenerService.start(this@MainActivity)
+                                    }
+
                                     val dest = when (role) {
                                         "admin"       -> "admin_dashboard"
                                         "superviseur" -> "dashboard"
@@ -199,19 +229,35 @@ class MainActivity : ComponentActivity() {
                         fromGoogle = true,
                         onSuperviseurClick = {
                             authViewModel.saveGoogleUserRole("superviseur") {
-                                navController.navigate("dashboard") {
+                                navController.navigate("complete_profile_google/superviseur") {
                                     popUpTo("welcome") { inclusive = true }
                                 }
                             }
                         },
                         onSurveilleClick = {
                             authViewModel.saveGoogleUserRole("surveille") {
-                                navController.navigate("dashboard_surveille") {
+                                navController.navigate("complete_profile_google/surveille") {
                                     popUpTo("welcome") { inclusive = true }
                                 }
                             }
                         },
                         onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("complete_profile_google/{role}") { back ->
+                    val role = back.arguments?.getString("role") ?: "superviseur"
+                    CompleteProfileGoogleScreen(
+                        onSuccess = {
+                            val dest = if (role == "surveille") "qr_scan" else "dashboard"
+                            navController.navigate(dest) {
+                                popUpTo("welcome") { inclusive = true }
+                            }
+                        },
+                        onCancel = {
+                            navController.navigate("welcome") {
+                                popUpTo("welcome") { inclusive = true }
+                            }
+                        }
                     )
                 }
 
@@ -470,9 +516,27 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         intent.getStringExtra("alarm_message")?.let { msg ->
-            // ✅ عدّل alarmMessage الموجود في setContent
-            // ما نقدروش نوصلوا من هنا مباشرة — نستعملو GlobalAlarmState
+
             GlobalAlarmState.pendingMessage = msg
+        }
+
+        val from   = intent.getStringExtra("incoming_from")
+        val callId = intent.getStringExtra("incoming_call_id")
+        if (from != null && callId != null) {
+            GlobalCallState.pendingFrom   = from
+            GlobalCallState.pendingCallId = callId
+        }
+    }
+
+    private fun handleIncomingIntent(intent: Intent) {
+        intent.getStringExtra("alarm_message")?.let { msg ->
+            GlobalAlarmState.pendingMessage = msg
+        }
+        val from   = intent.getStringExtra("incoming_from")
+        val callId = intent.getStringExtra("incoming_call_id")
+        if (from != null && callId != null) {
+            GlobalCallState.pendingFrom   = from
+            GlobalCallState.pendingCallId = callId
         }
     }
 

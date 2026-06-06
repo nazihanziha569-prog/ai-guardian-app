@@ -39,6 +39,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ai_guardian.R
 import com.example.ai_guardian.viewmodel.AuthViewModel
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.AddAPhoto
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.clip
+import coil.compose.rememberAsyncImagePainter
+import com.example.ai_guardian.ui.components.Base64Image
 
 @Composable
 fun RegisterContent(
@@ -49,6 +62,12 @@ fun RegisterContent(
 ) {
 
     val context = LocalContext.current
+
+    var imageUri by remember { mutableStateOf<android.net.Uri?>(null) }
+
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri -> uri?.let { imageUri = it; authViewModel.imageUri = it } }
 
     Column(
         modifier = Modifier
@@ -101,6 +120,41 @@ fun RegisterContent(
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))
+
+                Box(
+                    modifier = Modifier
+                        .size(90.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFE3F2FD))
+                        .clickable { launcher.launch("image/*") }
+                        .align(Alignment.CenterHorizontally),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (imageUri != null) {
+                        Image(
+                            painter = rememberAsyncImagePainter(imageUri),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize().clip(CircleShape),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
+                    } else {
+                        Icon(
+                            Icons.Default.AddAPhoto,
+                            contentDescription = null,
+                            tint = Color(0xFF1976D2),
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
+                }
+
+                Text(
+                    "Ajouter une photo",
+                    fontSize = 12.sp,
+                    color = Color.Gray,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
 
                 OutlinedTextField(
                     value = authViewModel.name,
@@ -177,11 +231,19 @@ fun RegisterContent(
 
                 // 🔥 BUTTON
                 Button(
-                    onClick = onSubmit,
+                    onClick = {
+                        val uri = authViewModel.imageUri
+                        if (uri != null) {
+                            authViewModel.uploadProfileImage(uri, context,
+                                onSuccess = { onSubmit() },
+                                onError   = { onSubmit() }
+                            )
+                        } else {
+                            onSubmit()
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF1976D2)
-                    )
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1976D2))
                 ) {
                     Text("Créer un compte", color = Color.White)
                 }

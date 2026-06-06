@@ -126,8 +126,11 @@ fun UserCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Avatar
-                if (user.imageUrl.isNotEmpty()) {
-                    AsyncImage(model = user.imageUrl, contentDescription = null, modifier = Modifier.size(55.dp).clip(CircleShape))
+                if (!user.imageUrl.isNullOrEmpty() && user.imageUrl.startsWith("data:image")) {
+                    com.example.ai_guardian.ui.components.Base64Image(
+                        base64 = user.imageUrl,
+                        modifier = Modifier.size(55.dp).clip(CircleShape)
+                    )
                 } else {
                     Box(
                         modifier = Modifier.size(55.dp).clip(CircleShape).background(Color(0xFFE3F2FD)),

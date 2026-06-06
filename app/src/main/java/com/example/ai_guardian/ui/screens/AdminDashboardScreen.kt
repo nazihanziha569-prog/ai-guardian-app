@@ -336,11 +336,18 @@ fun UserCard(
                         .background(Color(0xFF6366F1), RoundedCornerShape(12.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        user.nom.take(1).uppercase(),
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
+                    if (!user.imageUrl.isNullOrEmpty() && user.imageUrl.startsWith("data:image")) {
+                        com.example.ai_guardian.ui.components.Base64Image(
+                            base64 = user.imageUrl,
+                            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp))
+                        )
+                    } else {
+                        Text(
+                            user.nom.take(1).uppercase(),
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
 
                 Spacer(Modifier.width(12.dp))
@@ -413,9 +420,6 @@ fun UserCard(
     }
 }
 
-// ================= STATS =================
-
-// ================= STATS SCREEN =================
 
 @Composable
 fun StatsScreen(stats: Stats) {

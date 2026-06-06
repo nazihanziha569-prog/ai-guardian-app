@@ -75,8 +75,10 @@ class AuthViewModel(
         }
     }
 
-    fun register(onSuccess: () -> Unit, onError: (String) -> Unit) {
-
+    fun register(
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
         if (name.isEmpty() || email.isEmpty() || password.isEmpty() || confirmPassword.isEmpty()) {
             onError("Remplir tous les champs ❌")
             return
@@ -88,7 +90,6 @@ class AuthViewModel(
         }
 
         viewModelScope.launch {
-
             val user = User(
                 nom = name,
                 email = email,
@@ -100,7 +101,9 @@ class AuthViewModel(
             val result = repo.register(user, password)
 
             result.onSuccess {
-                onSuccess()
+
+                    onSuccess()
+
             }.onFailure {
                 onError(it.message ?: "Erreur")
             }
@@ -291,5 +294,36 @@ class AuthViewModel(
             .collection("Users").document(uid)
             .update("role", role)
             .addOnSuccessListener { onSuccess() }
+    }
+    fun uploadProfileImage(
+        uri: android.net.Uri,
+        context: android.content.Context,
+        onSuccess: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+
+        Thread {
+            try {
+                val inputStream = context.contentResolver.openInputStream(uri)
+                val original = android.graphics.BitmapFactory.decodeStream(inputStream)
+                val scaled = android.graphics.Bitmap.createScaledBitmap(original, 200, 200, true)
+                val outputStream = java.io.ByteArrayOutputStream()
+                scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 70, outputStream)
+                val base64 = android.util.Base64.encodeToString(
+                    outputStream.toByteArray(), android.util.Base64.DEFAULT
+                )
+                val dataUrl = "data:image/jpeg;base64,$base64"
+
+                FirebaseFirestore.getInstance()
+                    .collection("Users").document(uid)
+                    .update("imageUrl", dataUrl)
+                    .addOnSuccessListener { onSuccess(dataUrl) }
+                    .addOnFailureListener { onError(it.message ?: "Erreur") }
+
+            } catch (e: Exception) {
+                onError(e.message ?: "Erreur")
+            }
+        }.start()
     }
 }

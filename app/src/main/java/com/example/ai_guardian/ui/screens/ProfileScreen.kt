@@ -2,8 +2,11 @@ package com.example.ai_guardian.ui.screens
 
 import android.os.Looper
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,8 +17,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -40,6 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -49,6 +57,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ai_guardian.R
+import com.example.ai_guardian.ui.components.Base64Image
 import com.example.ai_guardian.viewmodel.AuthViewModel
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -79,6 +88,27 @@ fun ProfileScreen(
     var visible by remember { mutableStateOf(false) }
 
     var isLoading by remember { mutableStateOf(false) }
+
+    var imageUrl by remember { mutableStateOf("") }
+
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let {
+            isLoading = true
+            viewModel.uploadProfileImage(it, context,
+                onSuccess = { url ->
+                    imageUrl = url
+                    isLoading = false
+                    Toast.makeText(context, "✅ Photo mise à jour", Toast.LENGTH_SHORT).show()
+                },
+                onError = { msg ->
+                    isLoading = false
+                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
+    }
     var showSuccess by remember { mutableStateOf(false) }
 
 
@@ -90,6 +120,8 @@ fun ProfileScreen(
     }
     LaunchedEffect(Unit) {
 
+
+
         val uid = user?.uid ?: return@LaunchedEffect
 
         db.collection("Users")
@@ -98,6 +130,7 @@ fun ProfileScreen(
             .addOnSuccessListener { doc ->
                 name = doc.getString("nom") ?: ""
                 currentName = name
+                imageUrl = doc.getString("imageUrl") ?: ""
             }
 
         email = user?.email ?: ""
@@ -135,11 +168,11 @@ fun ProfileScreen(
 
 
 
-                actions = {
-                    IconButton(onClick = { onLogoutClick() }) {
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
                         Icon(
-                            Icons.Default.Logout,
-                            contentDescription = "Logout",
+                            Icons.Default.ArrowBack,
+                            contentDescription = "Retour",
                             tint = Color(0xFF1976D2)
                         )
                     }
@@ -178,6 +211,47 @@ fun ProfileScreen(
                 Column(modifier = Modifier.padding(20.dp)) {
 
                     Text("Informations", fontWeight = FontWeight.Bold)
+
+                    Spacer(Modifier.height(16.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .size(90.dp)
+                            .align(Alignment.CenterHorizontally)
+                            .clip(CircleShape)
+                            .clickable { launcher.launch("image/*") }
+                    ) {
+                        if (imageUrl.startsWith("data:image")) {
+                            Base64Image(
+                                base64 = imageUrl,
+                                modifier = Modifier.fillMaxSize().clip(CircleShape)
+                            )
+                        } else {
+                            Box(
+                                Modifier.fillMaxSize().background(Color(0xFFE3F2FD)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    name.take(1).uppercase(),
+                                    fontSize = 30.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1976D2)
+                                )
+                            }
+                        }
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .size(26.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF1976D2)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Edit, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
 
                     Spacer(Modifier.height(10.dp))
 

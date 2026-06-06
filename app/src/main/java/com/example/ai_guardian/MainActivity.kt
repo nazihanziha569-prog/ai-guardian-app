@@ -404,7 +404,7 @@ class MainActivity : ComponentActivity() {
                         onLogoutClick = {
                             FirebaseAuth.getInstance().signOut()
                             navController.navigate("login") {
-                                popUpTo("dashboard") { inclusive = true }
+                                popUpTo("profile") { inclusive = true }
                             }
                         }
                     )

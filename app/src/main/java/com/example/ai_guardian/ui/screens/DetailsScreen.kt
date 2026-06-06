@@ -140,9 +140,15 @@ private fun TabDetails(userId: String, navController: NavController, callVM: Cal
                 Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
 
                     Box {
+                        if (!user?.imageUrl.isNullOrEmpty() && user?.imageUrl?.startsWith("data:image") == true) {
+                            com.example.ai_guardian.ui.components.Base64Image(
+                                base64 = user!!.imageUrl,
+                                modifier = Modifier.size(80.dp).clip(CircleShape)
+                            )
+                        } else {
                         Box(modifier = Modifier.size(80.dp).clip(CircleShape).background(DBlueSoft), contentAlignment = Alignment.Center) {
                             Text(user?.nom?.take(1)?.uppercase() ?: "?", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = DBlue)
-                        }
+                        }}
                         Box(modifier = Modifier.align(Alignment.BottomEnd).size(18.dp).clip(CircleShape)
                             .background(if (isOnline) DGreen else Color(0xFFBDBDBD)).border(2.dp, DCard, CircleShape))
                     }

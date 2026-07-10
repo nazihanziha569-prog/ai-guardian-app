@@ -361,8 +361,8 @@ class MainActivity : ComponentActivity() {
                     DetailsScreen(
                         userId        = userId,
                         navController = navController,
-                        callVM        = callVM,    // ✅ maintenant accessible
-                        eglBase       = eglBase    // ✅ maintenant accessible
+                        callVM        = callVM,    
+                        eglBase       = eglBase    
                     )
                 }
 
@@ -457,7 +457,7 @@ class MainActivity : ComponentActivity() {
                     VideoCallScreen(
                         navController   = navController,
                         callId          = callId,
-                        roomName        = roomName,        // "offer" = appelant, "answer" = appelé
+                        roomName        = roomName,        
                         participantName = participantName,
                         callVM          = callVM,
                         eglBase         = eglBase
